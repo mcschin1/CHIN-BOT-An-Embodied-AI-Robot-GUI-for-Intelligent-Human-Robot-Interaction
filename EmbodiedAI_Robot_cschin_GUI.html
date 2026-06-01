@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CHIN-BOT — Embodied AI Robot Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c10;
+  --panel:#0d1117;
+  --panel2:#111820;
+  --border:#1e3a5f;
+  --border2:#0a4080;
+  --accent:#00d4ff;
+  --accent2:#ff6b35;
+  --accent3:#39ff14;
+  --warn:#ffcc00;
+  --red:#ff3355;
+  --text:#c8e6ff;
+  --text2:#6a9bbf;
+  --mono:'Share Tech Mono',monospace;
+  --sans:'Exo 2',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+/* Scanline overlay */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);pointer-events:none;z-index:9999}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--border2);position:relative;overflow:hidden}
+header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;position:relative;animation:pulse-border 2s infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.4)}50%{box-shadow:0 0 0 6px rgba(0,212,255,0)}}
+.logo-icon svg{width:20px;height:20px}
+.logo-name{font-family:var(--mono);font-size:1.3rem;color:var(--accent);letter-spacing:.15em}
+.logo-sub{font-size:.65rem;color:var(--text2);letter-spacing:.2em;text-transform:uppercase}
+.status-bar{display:flex;gap:16px;font-family:var(--mono);font-size:.7rem}
+.stat{display:flex;align-items:center;gap:5px;color:var(--text2)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent3);animation:blink 1.2s infinite}
+.dot.warn{background:var(--warn);animation:none}
+.dot.red{background:var(--red);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.sys-time{font-family:var(--mono);font-size:.8rem;color:var(--accent)}
+
+/* Main grid */
+.main{display:grid;grid-template-columns:280px 1fr 300px;grid-template-rows:auto 1fr auto;gap:0;height:calc(100vh - 57px)}
+
+/* Panels */
+.panel{background:var(--panel);border:1px solid var(--border)}
+.panel-head{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.72rem;color:var(--accent);letter-spacing:.12em;text-transform:uppercase}
+.panel-head .ph-icon{width:14px;height:14px;opacity:.7}
+
+/* LEFT: robot control */
+.left-panel{grid-row:1/4;border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+
+/* Camera viewport */
+.camera-wrap{position:relative;background:#000;flex:0 0 220px;overflow:hidden}
+#camCanvas{width:100%;height:100%;display:block}
+.cam-overlay{position:absolute;inset:0;pointer-events:none}
+/* Corner brackets */
+.cam-overlay::before,.cam-overlay::after{content:'';position:absolute;width:20px;height:20px;border-color:var(--accent);border-style:solid;opacity:.6}
+.cam-overlay::before{top:8px;left:8px;border-width:2px 0 0 2px}
+.cam-overlay::after{bottom:8px;right:8px;border-width:0 2px 2px 0}
+.cam-label{position:absolute;top:8px;right:10px;font-family:var(--mono);font-size:.62rem;color:var(--accent);background:rgba(0,0,0,.7);padding:2px 6px;border:1px solid var(--border)}
+.cam-rec{position:absolute;top:8px;left:30px;display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.62rem;color:var(--red)}
+.cam-rec span{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink .8s infinite}
+
+/* Detection boxes drawn on canvas */
+
+/* Robot status */
+.robot-status{padding:12px;display:flex;flex-direction:column;gap:8px;flex:0 0 auto}
+.status-row{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:.68rem}
+.status-label{color:var(--text2)}
+.status-val{color:var(--accent3)}
+.status-val.warn{color:var(--warn)}
+.meter-wrap{display:flex;align-items:center;gap:6px}
+.meter{height:6px;flex:1;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden}
+.meter-fill{height:100%;border-radius:2px;transition:width .4s}
+.meter-fill.blue{background:var(--accent)}
+.meter-fill.green{background:var(--accent3)}
+.meter-fill.warn{background:var(--warn)}
+
+/* Dpad */
+.dpad-section{padding:10px 12px;border-top:1px solid var(--border)}
+.dpad-label{font-family:var(--mono);font-size:.65rem;color:var(--text2);margin-bottom:8px;letter-spacing:.1em}
+.dpad{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px);gap:3px;margin:0 auto;width:fit-content}
+.dpad-btn{background:var(--panel2);border:1px solid var(--border);color:var(--accent);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .1s;user-select:none}
+.dpad-btn:hover{background:var(--border2);border-color:var(--accent)}
+.dpad-btn:active,.dpad-btn.pressed{background:var(--accent);color:#000;transform:scale(.94)}
+.dpad-center{background:var(--panel2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--text2);font-family:var(--mono)}
+.speed-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--mono);font-size:.65rem;color:var(--text2)}
+.speed-row input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+
+/* CENTRE: camera + detections big view */
+.centre-panel{grid-row:1/3;border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+.big-camera{position:relative;flex:1;background:#000;overflow:hidden}
+#bigCanvas{width:100%;height:100%;display:block}
+.big-overlay{position:absolute;inset:0;pointer-events:none}
+.big-overlay::before,.big-overlay::after{content:'';position:absolute;width:30px;height:30px;border-color:var(--accent);border-style:solid;opacity:.5}
+.big-overlay::before{top:12px;left:12px;border-width:2px 0 0 2px}
+.big-overlay::after{bottom:12px;right:12px;border-width:0 2px 2px 0}
+.hud-tl{position:absolute;top:12px;left:46px;font-family:var(--mono);font-size:.65rem;color:var(--accent);opacity:.8}
+.hud-br{position:absolute;bottom:12px;right:46px;font-family:var(--mono);font-size:.65rem;color:var(--accent);opacity:.8;text-align:right}
+
+/* Detection list */
+.detection-list{flex:0 0 auto;max-height:140px;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border)}
+.det-item{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.1);border-radius:2px;font-family:var(--mono);font-size:.68rem;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.det-class{color:var(--accent);min-width:100px}
+.det-conf{color:var(--accent3)}
+.det-pos{color:var(--text2);font-size:.6rem}
+.det-bar{height:3px;border-radius:2px;background:var(--accent);margin-top:2px}
+
+/* Conversation panel (bottom centre) */
+.convo-panel{grid-column:2;border-right:1px solid var(--border2);display:flex;flex-direction:column;max-height:280px}
+#chatLog{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;font-size:.8rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.msg{display:flex;flex-direction:column;gap:2px;max-width:90%;animation:fadeIn .3s}
+.msg.user{align-self:flex-end}
+.msg.bot{align-self:flex-start}
+.msg-bubble{padding:7px 12px;border-radius:4px;line-height:1.5;font-family:var(--sans);font-size:.8rem}
+.msg.user .msg-bubble{background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.25);color:var(--text)}
+.msg.bot .msg-bubble{background:rgba(255,107,53,.07);border:1px solid rgba(255,107,53,.2);color:var(--text)}
+.msg-meta{font-family:var(--mono);font-size:.6rem;color:var(--text2);padding:0 4px}
+.msg.user .msg-meta{text-align:right}
+.thinking{display:flex;gap:4px;align-items:center;padding:8px 12px}
+.think-dot{width:5px;height:5px;border-radius:50%;background:var(--accent2);animation:think .8s infinite}
+.think-dot:nth-child(2){animation-delay:.15s}
+.think-dot:nth-child(3){animation-delay:.3s}
+@keyframes think{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1);opacity:1}}
+.input-row{display:flex;gap:0;border-top:1px solid var(--border);padding:8px}
+#textInput{flex:1;background:var(--panel2);border:1px solid var(--border);border-right:none;color:var(--text);font-family:var(--mono);font-size:.78rem;padding:7px 12px;outline:none}
+#textInput:focus{border-color:var(--accent)}
+#textInput::placeholder{color:var(--text2)}
+.btn-send,.btn-voice,.btn-snap{background:var(--panel2);border:1px solid var(--border);color:var(--text2);padding:7px 12px;cursor:pointer;font-family:var(--mono);font-size:.7rem;transition:all .15s;white-space:nowrap}
+.btn-send:hover{background:rgba(0,212,255,.15);color:var(--accent);border-color:var(--accent)}
+.btn-voice{border-left:none;border-right:none}
+.btn-voice:hover,.btn-voice.active{background:rgba(255,51,85,.15);color:var(--red);border-color:var(--red)}
+.btn-voice.active{animation:pulse-red 1s infinite}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(255,51,85,.3)}50%{box-shadow:0 0 0 5px rgba(255,51,85,0)}}
+.btn-snap:hover{background:rgba(57,255,20,.1);color:var(--accent3);border-color:var(--accent3)}
+
+/* RIGHT: telemetry + log */
+.right-panel{grid-row:1/4;display:flex;flex-direction:column;overflow:hidden}
+.tele-grid{padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:0 0 auto}
+.tele-card{background:var(--panel2);border:1px solid var(--border);padding:8px;border-radius:2px;position:relative;overflow:hidden}
+.tele-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--accent);opacity:.3}
+.tc-label{font-family:var(--mono);font-size:.6rem;color:var(--text2);letter-spacing:.08em}
+.tc-val{font-family:var(--mono);font-size:1.1rem;color:var(--accent);font-weight:600;line-height:1}
+.tc-unit{font-size:.65rem;color:var(--text2)}
+
+/* Mini map */
+.minimap{padding:10px;border-top:1px solid var(--border);flex:0 0 auto}
+.minimap-canvas{width:100%;height:120px;background:var(--panel2);border:1px solid var(--border);display:block}
+
+/* Object class legend */
+.obj-legend{padding:8px 10px;border-top:1px solid var(--border);flex:0 0 auto}
+.legend-title{font-family:var(--mono);font-size:.65rem;color:var(--text2);margin-bottom:5px;letter-spacing:.08em}
+.legend-items{display:flex;flex-wrap:wrap;gap:4px}
+.legend-chip{padding:2px 7px;border-radius:2px;font-family:var(--mono);font-size:.6rem;border:1px solid}
+
+/* Event log */
+.event-log{flex:1;overflow:hidden;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+#eventLog{flex:1;overflow-y:auto;padding:6px 8px;font-family:var(--mono);font-size:.63rem;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.log-entry{display:flex;gap:8px;padding:2px 4px;border-radius:2px}
+.log-entry:hover{background:rgba(255,255,255,.03)}
+.log-time{color:var(--text2);flex:0 0 55px}
+.log-type{flex:0 0 48px;text-transform:uppercase;font-size:.58rem}
+.log-type.info{color:var(--accent)}
+.log-type.detect{color:var(--accent3)}
+.log-type.voice{color:var(--accent2)}
+.log-type.warn{color:var(--warn)}
+.log-type.llm{color:#c084fc}
+.log-msg{color:var(--text);flex:1;word-break:break-word}
+
+/* API key modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--panel);border:1px solid var(--border2);padding:28px;width:400px;max-width:95vw}
+.modal h2{font-family:var(--mono);color:var(--accent);font-size:1rem;letter-spacing:.1em;margin-bottom:8px}
+.modal p{font-size:.78rem;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.modal input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.8rem;padding:9px 12px;outline:none;margin-bottom:12px}
+.modal input:focus{border-color:var(--accent)}
+.modal-btns{display:flex;gap:8px}
+.mbtn{flex:1;padding:9px;border:1px solid;font-family:var(--mono);font-size:.75rem;cursor:pointer;transition:all .15s}
+.mbtn.primary{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent)}
+.mbtn.primary:hover{background:rgba(0,212,255,.2)}
+.mbtn.secondary{background:transparent;border-color:var(--border);color:var(--text2)}
+.mbtn.secondary:hover{border-color:var(--text2);color:var(--text)}
+
+/* Scrollbar styling */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div class="modal-bg" id="apiModal">
+  <div class="modal">
+    <h2>⬡ CHIN-BOT INITIALISATION</h2>
+    <p>Enter your Anthropic API key to activate the LLM voice assistant and object detection reasoning engine. The key is stored only in memory for this session.</p>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"/>
+    <div class="modal-btns">
+      <button class="mbtn primary" onclick="initApp()">ACTIVATE SYSTEM</button>
+      <button class="mbtn secondary" onclick="initDemo()">DEMO MODE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="8" r="4"/><rect x="4" y="14" width="16" height="7" rx="2"/>
+        <line x1="9" y1="14" x2="7" y2="21"/><line x1="15" y1="14" x2="17" y2="21"/>
+        <circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="15" cy="7" r="1" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-name">CHIN-BOT</div>
+      <div class="logo-sub">Embodied AI Control System v2.4</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="stat"><span class="dot" id="d-llm"></span><span id="s-llm">LLM READY</span></div>
+    <div class="stat"><span class="dot" id="d-vision"></span><span id="s-vision">VISION ACTIVE</span></div>
+    <div class="stat"><span class="dot warn"></span><span>GPS WEAK</span></div>
+    <div class="stat"><span class="dot" id="d-motor"></span><span>MOTORS OK</span></div>
+  </div>
+  <div class="sys-time" id="sysTime">00:00:00</div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT PANEL: robot status + controls -->
+  <div class="left-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ROBOT TELEMETRY
+    </div>
+
+    <!-- Small camera -->
+    <div class="camera-wrap">
+      <canvas id="camCanvas" width="280" height="220"></canvas>
+      <div class="cam-overlay"></div>
+      <div class="cam-label">CAM-01 • FORWARD</div>
+      <div class="cam-rec"><span></span>LIVE</div>
+    </div>
+
+    <!-- Status meters -->
+    <div class="robot-status">
+      <div class="status-row">
+        <span class="status-label">BATTERY</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px">
+          <div class="meter"><div class="meter-fill green" id="batMeter" style="width:78%"></div></div>
+        </div>
+        <span class="status-val" id="batVal">78%</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">CPU LOAD</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px">
+          <div class="meter"><div class="meter-fill blue" id="cpuMeter" style="width:42%"></div></div>
+        </div>
+        <span class="status-val" id="cpuVal">42%</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">TEMP</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px">
+          <div class="meter"><div class="meter-fill warn" id="tempMeter" style="width:55%"></div></div>
+        </div>
+        <span class="status-val warn" id="tempVal">55°C</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">SIGNAL</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px">
+          <div class="meter"><div class="meter-fill blue" id="sigMeter" style="width:88%"></div></div>
+        </div>
+        <span class="status-val" id="sigVal">88%</span>
+      </div>
+    </div>
+
+    <!-- D-pad -->
+    <div class="dpad-section">
+      <div class="dpad-label">LOCOMOTION CONTROL</div>
+      <div class="dpad">
+        <div></div>
+        <button class="dpad-btn" id="btn-fwd" onmousedown="moveRobot('fwd')" onmouseup="stopRobot()" ontouchstart="moveRobot('fwd')" ontouchend="stopRobot()">▲</button>
+        <div></div>
+        <button class="dpad-btn" id="btn-left" onmousedown="moveRobot('left')" onmouseup="stopRobot()">◀</button>
+        <div class="dpad-center">STOP</div>
+        <button class="dpad-btn" id="btn-right" onmousedown="moveRobot('right')" onmouseup="stopRobot()">▶</button>
+        <div></div>
+        <button class="dpad-btn" id="btn-bwd" onmousedown="moveRobot('bwd')" onmouseup="stopRobot()">▼</button>
+        <div></div>
+      </div>
+      <div class="speed-row">
+        <span>SPEED</span>
+        <input type="range" id="speedSlider" min="1" max="10" value="5" oninput="updateSpeed(this.value)"/>
+        <span id="speedVal" style="color:var(--accent);min-width:20px">5</span>
+      </div>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px">
+      <div class="dpad-label">QUICK ACTIONS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+        <button class="dpad-btn" style="height:32px;font-size:.65rem;font-family:var(--mono)" onclick="quickAction('scan')">🔍 SCAN</button>
+        <button class="dpad-btn" style="height:32px;font-size:.65rem;font-family:var(--mono)" onclick="quickAction('patrol')">🔄 PATROL</button>
+        <button class="dpad-btn" style="height:32px;font-size:.65rem;font-family:var(--mono)" onclick="quickAction('dock')">⚡ DOCK</button>
+        <button class="dpad-btn" style="height:32px;font-size:.65rem;font-family:var(--mono)" onclick="quickAction('report')">📋 REPORT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTRE-TOP: Big camera with object detection -->
+  <div class="centre-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      VISION SYSTEM — OBJECT DETECTION
+      <span style="margin-left:auto;font-size:.6rem;color:var(--accent3)" id="detCount">0 OBJECTS</span>
+    </div>
+    <div class="big-camera">
+      <canvas id="bigCanvas"></canvas>
+      <div class="big-overlay"></div>
+      <div class="hud-tl" id="hudTL">FPS: 24 | RES: 1280×720 | MODEL: YOLOv8-NANO</div>
+      <div class="hud-br" id="hudBR">LAT: 1.23°N | LON: 103.68°E | ALT: 12m</div>
+    </div>
+    <div class="panel-head" style="border-top:1px solid var(--border)">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+      DETECTED OBJECTS
+    </div>
+    <div class="detection-list" id="detectionList">
+      <div style="color:var(--text2);font-family:var(--mono);font-size:.65rem;padding:4px">Awaiting detection scan...</div>
+    </div>
+  </div>
+
+  <!-- CENTRE-BOTTOM: LLM Voice Chat -->
+  <div class="convo-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      LLM VOICE ASSISTANT — CHIN
+      <span style="margin-left:auto;font-size:.6rem;color:var(--text2)" id="modelLabel">claude-sonnet-4-20250514</span>
+    </div>
+    <div id="chatLog"></div>
+    <div class="input-row">
+      <input type="text" id="textInput" placeholder="Ask CHIN about what it sees, issue commands..." onkeydown="if(event.key==='Enter')sendMessage()"/>
+      <button class="btn-send" onclick="sendMessage()">SEND</button>
+      <button class="btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Voice input">🎤</button>
+      <button class="btn-snap" onclick="analyseScene()" title="Analyse current scene">📷 ANALYSE</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: telemetry cards + map + log -->
+  <div class="right-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      SENSOR TELEMETRY
+    </div>
+
+    <div class="tele-grid">
+      <div class="tele-card">
+        <div class="tc-label">SPEED</div>
+        <div class="tc-val" id="tc-speed">0.0<span class="tc-unit"> m/s</span></div>
+      </div>
+      <div class="tele-card">
+        <div class="tc-label">HEADING</div>
+        <div class="tc-val" id="tc-heading">045<span class="tc-unit">°</span></div>
+      </div>
+      <div class="tele-card">
+        <div class="tc-label">DISTANCE</div>
+        <div class="tc-val" id="tc-dist">2.4<span class="tc-unit"> m</span></div>
+      </div>
+      <div class="tele-card">
+        <div class="tc-label">OBJECTS</div>
+        <div class="tc-val" id="tc-obj">0<span class="tc-unit"> det</span></div>
+      </div>
+      <div class="tele-card" style="grid-column:1/-1">
+        <div class="tc-label">ULTRASONIC ARRAY (cm)</div>
+        <div style="display:flex;gap:4px;margin-top:4px" id="ultraArray">
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" style="width:80%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" style="width:40%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill warn" style="width:20%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" style="width:60%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" style="width:90%"></div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px;font-family:var(--mono);font-size:.55rem;color:var(--text2)">
+          <span>L2</span><span>L1</span><span>FWD</span><span>R1</span><span>R2</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Object class legend -->
+    <div class="obj-legend">
+      <div class="legend-title">DETECTION CLASSES</div>
+      <div class="legend-items" id="legendItems">
+        <span class="legend-chip" style="color:#ff6b6b;border-color:#ff6b6b22;background:rgba(255,107,107,.06)">PERSON</span>
+        <span class="legend-chip" style="color:#4ecdc4;border-color:#4ecdc422;background:rgba(78,205,196,.06)">CHAIR</span>
+        <span class="legend-chip" style="color:#45b7d1;border-color:#45b7d122;background:rgba(69,183,209,.06)">TABLE</span>
+        <span class="legend-chip" style="color:#f9ca24;border-color:#f9ca2422;background:rgba(249,202,36,.06)">BOTTLE</span>
+        <span class="legend-chip" style="color:#6c5ce7;border-color:#6c5ce722;background:rgba(108,92,231,.06)">LAPTOP</span>
+        <span class="legend-chip" style="color:#a29bfe;border-color:#a29bfe22;background:rgba(162,155,254,.06)">DOOR</span>
+        <span class="legend-chip" style="color:#fd79a8;border-color:#fd79a822;background:rgba(253,121,168,.06)">CUP</span>
+        <span class="legend-chip" style="color:#55efc4;border-color:#55efc422;background:rgba(85,239,196,.06)">PLANT</span>
+      </div>
+    </div>
+
+    <!-- Mini map -->
+    <div class="minimap">
+      <div class="legend-title" style="margin-bottom:5px">OCCUPANCY MAP</div>
+      <canvas class="minimap-canvas" id="mapCanvas" width="260" height="120"></canvas>
+    </div>
+
+    <!-- Event log -->
+    <div class="event-log">
+      <div class="panel-head">
+        <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        SYSTEM LOG
+      </div>
+      <div id="eventLog"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let apiKey = '';
+let demoMode = false;
+let isListening = false;
+let recognition = null;
+let detections = [];
+let robotPos = {x: 130, y: 60, heading: 45};
+let mapTrail = [];
+let frameCount = 0;
+let telemetry = {speed:0,heading:45,dist:2.4,bat:78,cpu:42,temp:55,sig:88};
+const COLORS = {
+  PERSON:'#ff6b6b',CHAIR:'#4ecdc4',TABLE:'#45b7d1',
+  BOTTLE:'#f9ca24',LAPTOP:'#6c5ce7',DOOR:'#a29bfe',
+  CUP:'#fd79a8',PLANT:'#55efc4',MONITOR:'#00cec9',
+  KEYBOARD:'#e17055',BAG:'#fdcb6e',ROBOT:'#00d4ff'
+};
+const SCENE_OBJECTS = [
+  {cls:'PERSON',  color:'#ff6b6b', bx:0.10, by:0.08, bw:0.18, bh:0.70, conf:0.94},
+  {cls:'CHAIR',   color:'#4ecdc4', bx:0.55, by:0.45, bw:0.20, bh:0.40, conf:0.87},
+  {cls:'TABLE',   color:'#45b7d1', bx:0.40, by:0.50, bw:0.35, bh:0.30, conf:0.91},
+  {cls:'LAPTOP',  color:'#6c5ce7', bx:0.42, by:0.38, bw:0.16, bh:0.12, conf:0.89},
+  {cls:'BOTTLE',  color:'#f9ca24', bx:0.72, by:0.38, bw:0.06, bh:0.16, conf:0.76},
+  {cls:'PLANT',   color:'#55efc4', bx:0.82, by:0.10, bw:0.12, bh:0.55, conf:0.82},
+  {cls:'DOOR',    color:'#a29bfe', bx:0.00, by:0.00, bw:0.08, bh:0.90, conf:0.95},
+  {cls:'CUP',     color:'#fd79a8', bx:0.63, by:0.42, bw:0.05, bh:0.09, conf:0.71},
+];
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+function initApp(){
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if(!k){alert('Please enter your API key');return;}
+  apiKey = k;
+  document.getElementById('apiModal').style.display='none';
+  boot();
+}
+function initDemo(){
+  demoMode = true;
+  document.getElementById('apiModal').style.display='none';
+  boot();
+}
+function boot(){
+  log('SYSTEM','info','CHIN-BOT control system initialised');
+  log('VISION','detect','Object detection pipeline active');
+  log('LLM','llm', demoMode?'Demo mode active — API calls simulated':'LLM connected: claude-sonnet-4-20250514');
+  log('MOTOR','info','Motor controllers online');
+  addBotMsg('CHIN online. Vision system active. I can see the environment and respond to your commands. Use the camera feed, ask me what I detect, or issue navigation commands.', true);
+  startAnimations();
+  runDetection();
+  setupVoice();
+}
+
+// ═══════════════════════════════════════
+// CANVAS RENDERING
+// ═══════════════════════════════════════
+function startAnimations(){
+  const bigCanvas = document.getElementById('bigCanvas');
+  const bigCtx = bigCanvas.getContext('2d');
+  const smallCanvas = document.getElementById('camCanvas');
+  const smallCtx = smallCanvas.getContext('2d');
+  const mapCanvas = document.getElementById('mapCanvas');
+  const mapCtx = mapCanvas.getContext('2d');
+
+  function resizeBig(){
+    const wrap = bigCanvas.parentElement;
+    bigCanvas.width = wrap.clientWidth;
+    bigCanvas.height = wrap.clientHeight;
+  }
+  resizeBig();
+  window.addEventListener('resize', resizeBig);
+
+  function drawScene(ctx, w, h, showBoxes){
+    // Dark room background with gradient
+    const grad = ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,'#0a0f14'); grad.addColorStop(1,'#060a0d');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,w,h);
+
+    // Floor line
+    ctx.fillStyle='#141e28'; ctx.fillRect(0,h*.7,w,h*.3);
+    ctx.strokeStyle='#1e3a5f'; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,h*.7);ctx.lineTo(w,h*.7);ctx.stroke();
+
+    // Perspective lines on floor
+    ctx.strokeStyle='rgba(30,58,95,.5)'; ctx.lineWidth=.5;
+    for(let i=0;i<5;i++){
+      const x = w*(i/4);
+      ctx.beginPath();ctx.moveTo(w/2,h*.7);ctx.lineTo(x,h);ctx.stroke();
+    }
+
+    // Noise / grain effect
+    const t = Date.now()*0.001;
+    frameCount++;
+
+    // Draw detected objects as 3D-ish shapes in scene
+    SCENE_OBJECTS.forEach((obj,i)=>{
+      const x=obj.bx*w, y=obj.by*h, bw=obj.bw*w, bh=obj.bh*h;
+      if(!showBoxes) return;
+
+      // Bounding box
+      const alpha = detections.includes(obj.cls) ? 1 : 0.35;
+      ctx.globalAlpha=alpha;
+      ctx.strokeStyle=obj.color; ctx.lineWidth=1.5;
+      ctx.strokeRect(x,y,bw,bh);
+
+      // Corner accents
+      const cs=8;
+      ctx.lineWidth=2.5;
+      [[x,y,1,1],[x+bw,y,-1,1],[x,y+bh,1,-1],[x+bw,y+bh,-1,-1]].forEach(([cx,cy,dx,dy])=>{
+        ctx.beginPath();ctx.moveTo(cx+dx*cs,cy);ctx.lineTo(cx,cy);ctx.lineTo(cx,cy+dy*cs);ctx.stroke();
+      });
+
+      // Label background
+      ctx.fillStyle='rgba(0,0,0,.75)'; ctx.fillRect(x,y-18,bw,18);
+      ctx.fillStyle=obj.color; ctx.font=`bold ${Math.max(9,w*0.011)}px 'Share Tech Mono',monospace`;
+      ctx.fillText(`${obj.cls}  ${Math.round(obj.conf*100)}%`,x+4,y-5);
+
+      ctx.globalAlpha=1;
+    });
+
+    // Scan line effect
+    const sl = ((Date.now()/16) % h);
+    const slGrad = ctx.createLinearGradient(0,sl-20,0,sl+4);
+    slGrad.addColorStop(0,'rgba(0,212,255,0)');
+    slGrad.addColorStop(1,'rgba(0,212,255,0.04)');
+    ctx.fillStyle=slGrad; ctx.fillRect(0,sl-20,w,24);
+  }
+
+  function drawMap(ctx){
+    const w=ctx.canvas.width, h=ctx.canvas.height;
+    ctx.fillStyle='#0a0f14'; ctx.fillRect(0,0,w,h);
+    // Grid
+    ctx.strokeStyle='rgba(30,58,95,.6)'; ctx.lineWidth=.5;
+    for(let i=0;i<w;i+=20){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}
+    for(let j=0;j<h;j+=20){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(w,j);ctx.stroke();}
+    // Trail
+    if(mapTrail.length>1){
+      ctx.strokeStyle='rgba(0,212,255,.3)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(mapTrail[0].x,mapTrail[0].y);
+      mapTrail.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.stroke();
+    }
+    // Robot icon
+    const rx=robotPos.x, ry=robotPos.y, ang=robotPos.heading*Math.PI/180;
+    ctx.save(); ctx.translate(rx,ry); ctx.rotate(ang);
+    ctx.fillStyle='#00d4ff';
+    ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(5,5); ctx.lineTo(-5,5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#00d4ff'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+    // Obstacles (simulated)
+    [[60,40,8,20],[180,80,15,10],[100,95,20,5]].forEach(([ox,oy,ow,oh])=>{
+      ctx.fillStyle='rgba(255,51,85,.3)'; ctx.strokeStyle='#ff3355'; ctx.lineWidth=.5;
+      ctx.fillRect(ox,oy,ow,oh); ctx.strokeRect(ox,oy,ow,oh);
+    });
+  }
+
+  function animLoop(){
+    const bw=bigCanvas.width, bh=bigCanvas.height;
+    drawScene(bigCtx,bw,bh,true);
+    drawScene(smallCtx,280,220,false);
+    drawMap(mapCtx);
+    updateTelemetry();
+    requestAnimationFrame(animLoop);
+  }
+  animLoop();
+}
+
+// ═══════════════════════════════════════
+// TELEMETRY SIMULATION
+// ═══════════════════════════════════════
+let moveDir=null;
+function updateTelemetry(){
+  if(moveDir){
+    telemetry.speed = 0.5 + Math.random()*0.3;
+    const step=1.2;
+    if(moveDir==='fwd'){robotPos.y-=step; mapTrail.push({x:robotPos.x,y:robotPos.y});}
+    if(moveDir==='bwd'){robotPos.y+=step; mapTrail.push({x:robotPos.x,y:robotPos.y});}
+    if(moveDir==='left'){robotPos.x-=step;robotPos.heading-=2;}
+    if(moveDir==='right'){robotPos.x+=step;robotPos.heading+=2;}
+    robotPos.x=Math.max(5,Math.min(255,robotPos.x));
+    robotPos.y=Math.max(5,Math.min(115,robotPos.y));
+    if(mapTrail.length>80)mapTrail.shift();
+  } else {
+    telemetry.speed=Math.max(0,telemetry.speed-0.05);
+  }
+  // Drift telemetry
+  telemetry.cpu = Math.min(95,Math.max(25,telemetry.cpu+(Math.random()-.5)*2));
+  telemetry.dist = Math.max(.5,Math.min(5,telemetry.dist+(Math.random()-.5)*.1));
+  telemetry.bat = Math.max(10,telemetry.bat-0.0002);
+
+  document.getElementById('tc-speed').innerHTML=`${telemetry.speed.toFixed(1)}<span class="tc-unit"> m/s</span>`;
+  document.getElementById('tc-heading').innerHTML=`${((robotPos.heading%360+360)%360).toFixed(0)}<span class="tc-unit">°</span>`;
+  document.getElementById('tc-dist').innerHTML=`${telemetry.dist.toFixed(1)}<span class="tc-unit"> m</span>`;
+  document.getElementById('cpuVal').textContent=`${Math.round(telemetry.cpu)}%`;
+  document.getElementById('cpuMeter').style.width=`${telemetry.cpu}%`;
+  document.getElementById('batVal').textContent=`${Math.round(telemetry.bat)}%`;
+  document.getElementById('batMeter').style.width=`${telemetry.bat}%`;
+  document.getElementById('batMeter').className='meter-fill '+(telemetry.bat<30?'warn':'green');
+  document.getElementById('sigMeter').style.width=`${telemetry.sig}%`;
+}
+function moveRobot(dir){moveDir=dir;}
+function stopRobot(){moveDir=null;}
+function updateSpeed(v){document.getElementById('speedVal').textContent=v;}
+
+// ═══════════════════════════════════════
+// OBJECT DETECTION (simulated + LLM analysis)
+// ═══════════════════════════════════════
+function runDetection(){
+  // Simulate gradual detection reveal
+  const reveal = (i)=>{
+    if(i>=SCENE_OBJECTS.length) return;
+    setTimeout(()=>{
+      const obj = SCENE_OBJECTS[i];
+      detections.push(obj.cls);
+      updateDetectionPanel();
+      log('VISION','detect',`${obj.cls} detected — conf ${Math.round(obj.conf*100)}%`);
+      reveal(i+1);
+    }, 400+i*300);
+  };
+  setTimeout(()=>{
+    log('VISION','detect','Initialising detection scan...');
+    reveal(0);
+  },1200);
+}
+
+function updateDetectionPanel(){
+  const list=document.getElementById('detectionList');
+  list.innerHTML='';
+  const shown = SCENE_OBJECTS.filter(o=>detections.includes(o.cls));
+  document.getElementById('detCount').textContent=`${shown.length} OBJECTS`;
+  document.getElementById('tc-obj').innerHTML=`${shown.length}<span class="tc-unit"> det</span>`;
+  shown.forEach(obj=>{
+    const div=document.createElement('div');
+    div.className='det-item';
+    div.innerHTML=`
+      <div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span class="det-class" style="color:${obj.color}">${obj.cls}</span>
+          <span class="det-conf">${Math.round(obj.conf*100)}%</span>
+          <span class="det-pos">x:${Math.round(obj.bx*100)}% y:${Math.round(obj.by*100)}%</span>
+        </div>
+        <div class="det-bar" style="width:${obj.conf*100}%;background:${obj.color}"></div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════
+// LLM CHAT
+// ═══════════════════════════════════════
+function getSceneContext(){
+  const visible = SCENE_OBJECTS.filter(o=>detections.includes(o.cls));
+  return `You are CHIN, an embodied AI robot assistant. You are a helpful, precise robotic AI with a slightly technical personality.
+Current robot state:
+- Position on map: (${Math.round(robotPos.x)}, ${Math.round(robotPos.y)}), heading ${Math.round(robotPos.heading)}°
+- Speed: ${telemetry.speed.toFixed(1)} m/s, Battery: ${Math.round(telemetry.bat)}%
+- Nearest obstacle distance: ${telemetry.dist.toFixed(1)}m
+
+Currently detected objects in visual field (${visible.length} total):
+${visible.map(o=>`  - ${o.cls} at position (${Math.round(o.bx*100)}%, ${Math.round(o.by*100)}%) with ${Math.round(o.conf*100)}% confidence`).join('\n')}
+
+Respond concisely (2-4 sentences max). You can comment on what you see, plan navigation, or respond to commands. If asked to do something, acknowledge and simulate the action.`;
+}
+
+async function sendMessage(){
+  const input=document.getElementById('textInput');
+  const text=input.value.trim();
+  if(!text) return;
+  input.value='';
+  addUserMsg(text);
+  log('VOICE','voice',`User: "${text.substring(0,40)}..."`);
+  await callLLM(text);
+}
+
+async function callLLM(userText){
+  const chatLog=document.getElementById('chatLog');
+  const thinking=document.createElement('div');
+  thinking.className='thinking';
+  thinking.innerHTML='<div class="think-dot"></div><div class="think-dot"></div><div class="think-dot"></div>';
+  chatLog.appendChild(thinking);
+  chatLog.scrollTop=chatLog.scrollHeight;
+
+  try{
+    let reply;
+    if(demoMode){
+      await new Promise(r=>setTimeout(r,800+Math.random()*600));
+      reply = getDemoReply(userText);
+    } else {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:300,
+          system: getSceneContext(),
+          messages:[{role:'user',content:userText}]
+        })
+      });
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message);
+      reply = data.content[0].text;
+    }
+    thinking.remove();
+    addBotMsg(reply);
+    log('LLM','llm',`Response: "${reply.substring(0,50)}..."`);
+    if(typeof speechSynthesis!=='undefined'){
+      const utt=new SpeechSynthesisUtterance(reply);
+      utt.rate=1.05; utt.pitch=0.85;
+      speechSynthesis.speak(utt);
+    }
+  } catch(e){
+    thinking.remove();
+    addBotMsg(`System error: ${e.message}. Check API key or switch to demo mode.`);
+    log('SYSTEM','warn',`LLM error: ${e.message}`);
+  }
+}
+
+function getDemoReply(text){
+  const t=text.toLowerCase();
+  const visible=SCENE_OBJECTS.filter(o=>detections.includes(o.cls)).map(o=>o.cls);
+  if(t.includes('see')||t.includes('detect')||t.includes('what'))
+    return `My vision system currently detects ${visible.length} objects: ${visible.join(', ')}. The PERSON in the left quadrant is the closest target at approximately 2.4 metres. Table and chair cluster in the centre-right zone.`;
+  if(t.includes('go')||t.includes('move')||t.includes('forward')||t.includes('navigate'))
+    return `Navigation command received. Plotting path with obstacle avoidance. Nearest obstacle at ${telemetry.dist.toFixed(1)}m — safe to proceed. Adjusting heading to ${Math.round(robotPos.heading)}°.`;
+  if(t.includes('battery')||t.includes('status')||t.includes('health'))
+    return `System status: Battery at ${Math.round(telemetry.bat)}%, CPU load ${Math.round(telemetry.cpu)}%. All motor controllers nominal. Signal strength 88%. Recommend docking when battery reaches 20%.`;
+  if(t.includes('scan')||t.includes('environment')||t.includes('room'))
+    return `Full environment scan complete. Room dimensions estimated 6×8m. ${visible.length} objects mapped. Door detected at far-left — exit confirmed. No movement detected from PERSON in last 3 seconds.`;
+  if(t.includes('person')||t.includes('human'))
+    return `PERSON confirmed at position (10%, 8%) — left foreground zone. Confidence 94%. No threat indicators. Maintaining 2m social distance protocol. Person appears stationary.`;
+  return `Command acknowledged. Processing with current sensor data. ${visible.length} objects in visual field. Battery ${Math.round(telemetry.bat)}% — systems nominal. Ready for next instruction.`;
+}
+
+async function analyseScene(){
+  log('VISION','detect','Scene analysis requested by operator');
+  const names=SCENE_OBJECTS.filter(o=>detections.includes(o.cls)).map(o=>o.cls).join(', ');
+  await callLLM(`Analyse the current scene and give me a tactical summary of all detected objects: ${names}. What should I be aware of for navigation?`);
+}
+
+function addUserMsg(text){
+  const log=document.getElementById('chatLog');
+  const t=new Date().toLocaleTimeString();
+  log.innerHTML+=`<div class="msg user"><div class="msg-bubble">${text}</div><div class="msg-meta">OPERATOR · ${t}</div></div>`;
+  log.scrollTop=log.scrollHeight;
+}
+function addBotMsg(text,isInit=false){
+  const chatLog=document.getElementById('chatLog');
+  const t=new Date().toLocaleTimeString();
+  chatLog.innerHTML+=`<div class="msg bot"><div class="msg-bubble">${text}</div><div class="msg-meta">CHIN-BOT · ${t}</div></div>`;
+  chatLog.scrollTop=chatLog.scrollHeight;
+}
+
+// ═══════════════════════════════════════
+// VOICE INPUT
+// ═══════════════════════════════════════
+function setupVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){log('VOICE','warn','Web Speech API not available in this browser');return;}
+  recognition=new SR();
+  recognition.continuous=false; recognition.lang='en-US';
+  recognition.onresult=e=>{
+    const text=e.results[0][0].transcript;
+    document.getElementById('textInput').value=text;
+    sendMessage();
+  };
+  recognition.onend=()=>{
+    isListening=false;
+    document.getElementById('voiceBtn').classList.remove('active');
+  };
+  recognition.onerror=e=>log('VOICE','warn',`Speech error: ${e.error}`);
+}
+function toggleVoice(){
+  if(!recognition){log('VOICE','warn','Voice not supported');return;}
+  if(isListening){
+    recognition.stop(); isListening=false;
+    document.getElementById('voiceBtn').classList.remove('active');
+    log('VOICE','voice','Voice input stopped');
+  } else {
+    recognition.start(); isListening=true;
+    document.getElementById('voiceBtn').classList.add('active');
+    log('VOICE','voice','Listening for voice command...');
+  }
+}
+
+// ═══════════════════════════════════════
+// QUICK ACTIONS
+// ═══════════════════════════════════════
+function quickAction(action){
+  const msgs={
+    scan:'Initiating 360° environment scan. Rotating sensor array...',
+    patrol:'Autonomous patrol mode activated. Following perimeter waypoints.',
+    dock:'Calculating path to docking station. ETA 45 seconds.',
+    report:'Generating status report. Collating sensor data and detection logs.'
+  };
+  log('SYSTEM','info',`Quick action: ${action.toUpperCase()}`);
+  callLLM(msgs[action]);
+}
+
+// ═══════════════════════════════════════
+// EVENT LOG
+// ═══════════════════════════════════════
+function log(source, type, msg){
+  const el=document.getElementById('eventLog');
+  const t=new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML+=`<div class="log-entry"><span class="log-time">${t}</span><span class="log-type ${type}">${source}</span><span class="log-msg">${msg}</span></div>`;
+  el.scrollTop=el.scrollHeight;
+}
+
+// System clock
+setInterval(()=>{
+  const now=new Date();
+  document.getElementById('sysTime').textContent=now.toLocaleTimeString('en',{hour12:false});
+},1000);
+
+// Boot log
+setTimeout(()=>log('SYSTEM','info','All subsystems nominal'),400);
+setTimeout(()=>log('MOTOR','info','Servo calibration complete'),800);
+setTimeout(()=>log('VISION','detect','Camera feed active — 1280×720@24fps'),1200);
+</script>
+</body>
+</html>
