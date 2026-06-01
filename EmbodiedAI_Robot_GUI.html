@@ -1,0 +1,2825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CHIN-BOT — Embodied AI Robot Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c10;--panel:#0d1117;--panel2:#111820;
+  --border:#1e3a5f;--border2:#0a4080;
+  --accent:#00d4ff;--accent2:#ff6b35;--accent3:#39ff14;
+  --warn:#ffcc00;--red:#ff3355;
+  --text:#c8e6ff;--text2:#6a9bbf;
+  --mono:'Share Tech Mono',monospace;--sans:'Exo 2',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);pointer-events:none;z-index:9999}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--border2);position:relative;overflow:hidden}
+header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;animation:pulse-border 2s infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.4)}50%{box-shadow:0 0 0 6px rgba(0,212,255,0)}}
+.logo-icon svg{width:20px;height:20px}
+.logo-name{font-family:var(--mono);font-size:1.3rem;color:var(--accent);letter-spacing:.15em}
+.logo-sub{font-size:.65rem;color:var(--text2);letter-spacing:.2em;text-transform:uppercase}
+.status-bar{display:flex;gap:16px;font-family:var(--mono);font-size:.7rem}
+.stat{display:flex;align-items:center;gap:5px;color:var(--text2)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent3);animation:blink 1.2s infinite}
+.dot.warn{background:var(--warn);animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.sys-time{font-family:var(--mono);font-size:.8rem;color:var(--accent)}
+.main{display:grid;grid-template-columns:280px 1fr 300px;grid-template-rows:auto 1fr auto;gap:0;height:calc(100vh - 57px)}
+.panel{background:var(--panel);border:1px solid var(--border)}
+.panel-head{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.72rem;color:var(--accent);letter-spacing:.12em;text-transform:uppercase}
+.panel-head .ph-icon{width:14px;height:14px;opacity:.7}
+.left-panel{grid-row:1/4;border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+.camera-wrap{position:relative;background:#000;flex:0 0 200px;overflow:hidden}
+#camCanvas{width:100%;height:100%;display:block}
+.cam-overlay{position:absolute;inset:0;pointer-events:none}
+.cam-overlay::before,.cam-overlay::after{content:'';position:absolute;width:20px;height:20px;border-color:var(--accent);border-style:solid;opacity:.6}
+.cam-overlay::before{top:8px;left:8px;border-width:2px 0 0 2px}
+.cam-overlay::after{bottom:8px;right:8px;border-width:0 2px 2px 0}
+.cam-label{position:absolute;top:8px;right:10px;font-family:var(--mono);font-size:.62rem;color:var(--accent);background:rgba(0,0,0,.7);padding:2px 6px;border:1px solid var(--border)}
+.cam-rec{position:absolute;top:8px;left:30px;display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.62rem;color:var(--red)}
+.cam-rec span{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink .8s infinite}
+.robot-status{padding:10px;display:flex;flex-direction:column;gap:6px;flex:0 0 auto}
+.status-row{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:.68rem}
+.status-label{color:var(--text2)}
+.status-val{color:var(--accent3)}
+.status-val.warn{color:var(--warn)}
+.meter-wrap{display:flex;align-items:center;gap:6px}
+.meter{height:6px;flex:1;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden}
+.meter-fill{height:100%;border-radius:2px;transition:width .4s}
+.meter-fill.blue{background:var(--accent)}
+.meter-fill.green{background:var(--accent3)}
+.meter-fill.warn{background:var(--warn)}
+.dpad-section{padding:8px 12px;border-top:1px solid var(--border)}
+.dpad-label{font-family:var(--mono);font-size:.65rem;color:var(--text2);margin-bottom:6px;letter-spacing:.1em}
+.dpad{display:grid;grid-template-columns:repeat(3,38px);grid-template-rows:repeat(3,38px);gap:3px;margin:0 auto;width:fit-content}
+.dpad-btn{background:var(--panel2);border:1px solid var(--border);color:var(--accent);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .1s;user-select:none}
+.dpad-btn:hover{background:var(--border2);border-color:var(--accent)}
+.dpad-btn:active,.dpad-btn.pressed{background:var(--accent);color:#000;transform:scale(.94)}
+.dpad-center{background:var(--panel2);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.5rem;color:var(--text2);font-family:var(--mono)}
+.speed-row{display:flex;align-items:center;gap:8px;margin-top:6px;font-family:var(--mono);font-size:.65rem;color:var(--text2)}
+.speed-row input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.centre-panel{grid-row:1/3;border-right:1px solid var(--border2);display:flex;flex-direction:column;overflow:hidden}
+.big-camera{position:relative;flex:1;background:#000;overflow:hidden}
+#bigCanvas{width:100%;height:100%;display:block}
+.big-overlay{position:absolute;inset:0;pointer-events:none}
+.big-overlay::before,.big-overlay::after{content:'';position:absolute;width:30px;height:30px;border-color:var(--accent);border-style:solid;opacity:.5}
+.big-overlay::before{top:12px;left:12px;border-width:2px 0 0 2px}
+.big-overlay::after{bottom:12px;right:12px;border-width:0 2px 2px 0}
+.hud-tl{position:absolute;top:12px;left:46px;font-family:var(--mono);font-size:.65rem;color:var(--accent);opacity:.8}
+.hud-br{position:absolute;bottom:12px;right:46px;font-family:var(--mono);font-size:.65rem;color:var(--accent);opacity:.8;text-align:right}
+.detection-list{flex:0 0 auto;max-height:130px;overflow-y:auto;padding:5px 10px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border)}
+.det-item{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.1);border-radius:2px;font-family:var(--mono);font-size:.68rem;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.det-class{color:var(--accent);min-width:100px}
+.det-conf{color:var(--accent3)}
+.det-pos{color:var(--text2);font-size:.6rem}
+.det-bar{height:3px;border-radius:2px;background:var(--accent);margin-top:2px}
+.convo-panel{grid-column:2;border-right:1px solid var(--border2);display:flex;flex-direction:column;max-height:260px}
+#chatLog{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:6px;font-size:.8rem;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.msg{display:flex;flex-direction:column;gap:2px;max-width:90%;animation:fadeIn .3s}
+.msg.user{align-self:flex-end}
+.msg.bot{align-self:flex-start}
+.msg-bubble{padding:7px 12px;border-radius:4px;line-height:1.5;font-family:var(--sans);font-size:.8rem}
+.msg.user .msg-bubble{background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.25);color:var(--text)}
+.msg.bot .msg-bubble{background:rgba(255,107,53,.07);border:1px solid rgba(255,107,53,.2);color:var(--text)}
+.msg-meta{font-family:var(--mono);font-size:.6rem;color:var(--text2);padding:0 4px}
+.msg.user .msg-meta{text-align:right}
+.thinking{display:flex;gap:4px;align-items:center;padding:8px 12px}
+.think-dot{width:5px;height:5px;border-radius:50%;background:var(--accent2);animation:think .8s infinite}
+.think-dot:nth-child(2){animation-delay:.15s}
+.think-dot:nth-child(3){animation-delay:.3s}
+@keyframes think{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1);opacity:1}}
+.input-row{display:flex;gap:0;border-top:1px solid var(--border);padding:7px}
+#textInput{flex:1;background:var(--panel2);border:1px solid var(--border);border-right:none;color:var(--text);font-family:var(--mono);font-size:.78rem;padding:7px 12px;outline:none}
+#textInput:focus{border-color:var(--accent)}
+#textInput::placeholder{color:var(--text2)}
+.btn-send,.btn-voice,.btn-snap{background:var(--panel2);border:1px solid var(--border);color:var(--text2);padding:7px 10px;cursor:pointer;font-family:var(--mono);font-size:.7rem;transition:all .15s;white-space:nowrap}
+.btn-send:hover{background:rgba(0,212,255,.15);color:var(--accent);border-color:var(--accent)}
+.btn-voice{border-left:none;border-right:none}
+.btn-voice:hover,.btn-voice.active{background:rgba(255,51,85,.15);color:var(--red);border-color:var(--red)}
+.btn-voice.active{animation:pulse-red 1s infinite}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(255,51,85,.3)}50%{box-shadow:0 0 0 5px rgba(255,51,85,0)}}
+.btn-snap:hover{background:rgba(57,255,20,.1);color:var(--accent3);border-color:var(--accent3)}
+.right-panel{grid-row:1/4;display:flex;flex-direction:column;overflow:hidden}
+.tele-grid{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:5px;flex:0 0 auto}
+.tele-card{background:var(--panel2);border:1px solid var(--border);padding:7px;border-radius:2px;position:relative;overflow:hidden}
+.tele-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:var(--accent);opacity:.3}
+.tc-label{font-family:var(--mono);font-size:.6rem;color:var(--text2);letter-spacing:.08em}
+.tc-val{font-family:var(--mono);font-size:1rem;color:var(--accent);font-weight:600;line-height:1}
+.tc-unit{font-size:.6rem;color:var(--text2)}
+.minimap{padding:8px;border-top:1px solid var(--border);flex:0 0 auto}
+.minimap-canvas{width:100%;height:110px;background:var(--panel2);border:1px solid var(--border);display:block}
+.obj-legend{padding:6px 8px;border-top:1px solid var(--border);flex:0 0 auto}
+.legend-title{font-family:var(--mono);font-size:.62rem;color:var(--text2);margin-bottom:4px;letter-spacing:.08em}
+.legend-items{display:flex;flex-wrap:wrap;gap:3px}
+.legend-chip{padding:2px 6px;border-radius:2px;font-family:var(--mono);font-size:.58rem;border:1px solid}
+.event-log{flex:1;overflow:hidden;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+#eventLog{flex:1;overflow-y:auto;padding:5px 7px;font-family:var(--mono);font-size:.63rem;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.log-entry{display:flex;gap:7px;padding:2px 4px;border-radius:2px}
+.log-entry:hover{background:rgba(255,255,255,.03)}
+.log-time{color:var(--text2);flex:0 0 52px}
+.log-type{flex:0 0 46px;text-transform:uppercase;font-size:.58rem}
+.log-type.info{color:var(--accent)}
+.log-type.detect{color:var(--accent3)}
+.log-type.voice{color:var(--accent2)}
+.log-type.warn{color:var(--warn)}
+.log-type.llm{color:#c084fc}
+.log-msg{color:var(--text);flex:1;word-break:break-word}
+
+/* ── Source files panel ── */
+.src-panel{border-top:2px solid var(--border2);background:var(--panel);overflow:hidden}
+.src-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--panel2);border-bottom:1px solid var(--border)}
+.src-panel-head h3{font-family:var(--mono);font-size:.8rem;color:var(--accent);letter-spacing:.12em}
+.src-dl-all{background:rgba(0,212,255,.1);border:1px solid var(--accent);color:var(--accent);font-family:var(--mono);font-size:.7rem;padding:5px 14px;cursor:pointer;transition:all .15s}
+.src-dl-all:hover{background:rgba(0,212,255,.2)}
+.src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0;border-bottom:1px solid var(--border)}
+.src-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(30,58,95,.5);border-right:1px solid rgba(30,58,95,.5);transition:background .15s}
+.src-row:hover{background:rgba(0,212,255,.04)}
+.src-info{display:flex;align-items:center;gap:10px}
+.src-icon{font-size:1.1rem}
+.src-name{font-family:var(--mono);font-size:.75rem;color:var(--accent)}
+.src-desc{font-size:.65rem;color:var(--text2);margin-top:1px}
+.src-actions{display:flex;gap:5px;flex-shrink:0}
+.src-btn{font-family:var(--mono);font-size:.62rem;padding:4px 9px;border:1px solid;cursor:pointer;transition:all .15s}
+.view-btn{background:transparent;border-color:var(--border);color:var(--text2)}
+.view-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.07)}
+.dl-btn{background:rgba(57,255,20,.06);border-color:var(--accent3);color:var(--accent3)}
+.dl-btn:hover{background:rgba(57,255,20,.15)}
+.ws-badge{font-family:var(--mono);font-size:.62rem;padding:3px 8px;border:1px solid;background:rgba(255,107,53,.08);border-color:var(--accent2);color:var(--accent2)}
+
+/* ── Code viewer modal ── */
+.code-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:none;align-items:center;justify-content:center}
+.code-modal-bg.open{display:flex}
+.code-modal{background:var(--panel);border:1px solid var(--border2);width:820px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column}
+.code-modal-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--panel2)}
+.code-modal-head span{font-family:var(--mono);font-size:.8rem;color:var(--accent)}
+.code-close{background:transparent;border:1px solid var(--border);color:var(--text2);font-family:var(--mono);font-size:.75rem;padding:4px 10px;cursor:pointer}
+.code-close:hover{border-color:var(--red);color:var(--red)}
+.code-body{flex:1;overflow:auto;padding:16px}
+pre{font-family:var(--mono);font-size:.72rem;line-height:1.6;color:#c8e6ff;white-space:pre-wrap;word-break:break-word}
+
+/* ── API key modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--panel);border:1px solid var(--border2);padding:28px;width:400px;max-width:95vw}
+.modal h2{font-family:var(--mono);color:var(--accent);font-size:1rem;letter-spacing:.1em;margin-bottom:8px}
+.modal p{font-size:.78rem;color:var(--text2);line-height:1.6;margin-bottom:16px}
+.modal input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:.8rem;padding:9px 12px;outline:none;margin-bottom:12px}
+.modal input:focus{border-color:var(--accent)}
+.modal-btns{display:flex;gap:8px}
+.mbtn{flex:1;padding:9px;border:1px solid;font-family:var(--mono);font-size:.75rem;cursor:pointer;transition:all .15s}
+.mbtn.primary{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent)}
+.mbtn.primary:hover{background:rgba(0,212,255,.2)}
+.mbtn.secondary{background:transparent;border-color:var(--border);color:var(--text2)}
+.mbtn.secondary:hover{border-color:var(--text2);color:var(--text)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div class="modal-bg" id="apiModal">
+  <div class="modal">
+    <h2>⬡ CHIN-BOT INITIALISATION</h2>
+    <p>Enter your Anthropic API key to activate the LLM voice assistant and object detection reasoning engine. The key is stored only in memory for this session.</p>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off"/>
+    <div class="modal-btns">
+      <button class="mbtn primary" onclick="initApp()">ACTIVATE SYSTEM</button>
+      <button class="mbtn secondary" onclick="initDemo()">DEMO MODE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Code viewer modal -->
+<div class="code-modal-bg" id="codeModal">
+  <div class="code-modal">
+    <div class="code-modal-head">
+      <span id="codeModalTitle">source.py</span>
+      <div style="display:flex;gap:8px">
+        <button class="src-btn dl-btn" id="codeModalDl" onclick="downloadCurrentFile()">⬇ DOWNLOAD</button>
+        <button class="code-close" onclick="closeCode()">✕ CLOSE</button>
+      </div>
+    </div>
+    <div class="code-body"><pre id="codeContent"></pre></div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="8" r="4"/><rect x="4" y="14" width="16" height="7" rx="2"/>
+        <line x1="9" y1="14" x2="7" y2="21"/><line x1="15" y1="14" x2="17" y2="21"/>
+        <circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="15" cy="7" r="1" fill="currentColor"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-name">CHIN-BOT</div>
+      <div class="logo-sub">Embodied AI Control System v2.5</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="stat"><span class="dot" id="d-llm"></span><span id="s-llm">LLM READY</span></div>
+    <div class="stat"><span class="dot" id="d-vision"></span><span>VISION ACTIVE</span></div>
+    <div class="stat"><span class="dot warn"></span><span>GPS WEAK</span></div>
+    <div class="stat"><span class="dot" id="d-ws"></span><span id="s-ws">WS OFFLINE</span></div>
+    <div class="stat"><span class="dot" id="d-motor"></span><span>MOTORS OK</span></div>
+  </div>
+  <div class="sys-time" id="sysTime">00:00:00</div>
+</header>
+
+<div class="main">
+  <!-- LEFT: robot controls -->
+  <div class="left-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      ROBOT TELEMETRY
+    </div>
+    <div class="camera-wrap">
+      <canvas id="camCanvas" width="280" height="200"></canvas>
+      <div class="cam-overlay"></div>
+      <div class="cam-label">CAM-01 • FORWARD</div>
+      <div class="cam-rec"><span></span>LIVE</div>
+    </div>
+    <div class="robot-status">
+      <div class="status-row"><span class="status-label">BATTERY</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px"><div class="meter"><div class="meter-fill green" id="batMeter" style="width:78%"></div></div></div>
+        <span class="status-val" id="batVal">78%</span></div>
+      <div class="status-row"><span class="status-label">CPU LOAD</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px"><div class="meter"><div class="meter-fill blue" id="cpuMeter" style="width:42%"></div></div></div>
+        <span class="status-val" id="cpuVal">42%</span></div>
+      <div class="status-row"><span class="status-label">TEMP</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px"><div class="meter"><div class="meter-fill warn" id="tempMeter" style="width:55%"></div></div></div>
+        <span class="status-val warn" id="tempVal">55°C</span></div>
+      <div class="status-row"><span class="status-label">SIGNAL</span>
+        <div class="meter-wrap" style="flex:1;margin:0 8px"><div class="meter"><div class="meter-fill blue" id="sigMeter" style="width:88%"></div></div></div>
+        <span class="status-val" id="sigVal">88%</span></div>
+    </div>
+    <div class="dpad-section">
+      <div class="dpad-label">LOCOMOTION CONTROL</div>
+      <div class="dpad">
+        <div></div>
+        <button class="dpad-btn" onmousedown="moveRobot('fwd')" onmouseup="stopRobot()" ontouchstart="moveRobot('fwd')" ontouchend="stopRobot()">▲</button>
+        <div></div>
+        <button class="dpad-btn" onmousedown="moveRobot('left')" onmouseup="stopRobot()">◀</button>
+        <div class="dpad-center">STOP</div>
+        <button class="dpad-btn" onmousedown="moveRobot('right')" onmouseup="stopRobot()">▶</button>
+        <div></div>
+        <button class="dpad-btn" onmousedown="moveRobot('bwd')" onmouseup="stopRobot()">▼</button>
+        <div></div>
+      </div>
+      <div class="speed-row">
+        <span>SPEED</span>
+        <input type="range" id="speedSlider" min="1" max="10" value="5" oninput="updateSpeed(this.value)"/>
+        <span id="speedVal" style="color:var(--accent);min-width:20px">5</span>
+      </div>
+    </div>
+    <div style="padding:7px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px">
+      <div class="dpad-label">QUICK ACTIONS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <button class="dpad-btn" style="height:28px;font-size:.6rem;font-family:var(--mono)" onclick="quickAction('scan')">🔍 SCAN</button>
+        <button class="dpad-btn" style="height:28px;font-size:.6rem;font-family:var(--mono)" onclick="quickAction('patrol')">🔄 PATROL</button>
+        <button class="dpad-btn" style="height:28px;font-size:.6rem;font-family:var(--mono)" onclick="quickAction('dock')">⚡ DOCK</button>
+        <button class="dpad-btn" style="height:28px;font-size:.6rem;font-family:var(--mono)" onclick="quickAction('report')">📋 REPORT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTRE-TOP: vision -->
+  <div class="centre-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      VISION SYSTEM — OBJECT DETECTION
+      <span style="margin-left:auto;font-size:.6rem;color:var(--accent3)" id="detCount">0 OBJECTS</span>
+      <span class="ws-badge" id="wsBadge" style="margin-left:8px">SIMULATED</span>
+    </div>
+    <div class="big-camera">
+      <canvas id="bigCanvas"></canvas>
+      <div class="big-overlay"></div>
+      <div class="hud-tl" id="hudTL">FPS: 24 | RES: 1280×720 | MODEL: YOLOv8-NANO</div>
+      <div class="hud-br">LAT: 1.23°N | LON: 103.68°E | ALT: 12m</div>
+    </div>
+    <div class="panel-head" style="border-top:1px solid var(--border)">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+      DETECTED OBJECTS
+    </div>
+    <div class="detection-list" id="detectionList"><div style="color:var(--text2);font-family:var(--mono);font-size:.65rem;padding:4px">Awaiting scan...</div></div>
+  </div>
+
+  <!-- CENTRE-BOTTOM: chat -->
+  <div class="convo-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      LLM VOICE ASSISTANT — CHIN
+      <span style="margin-left:auto;font-size:.6rem;color:var(--text2)">claude-sonnet-4-20250514</span>
+    </div>
+    <div id="chatLog"></div>
+    <div class="input-row">
+      <input type="text" id="textInput" placeholder="Ask CHIN about what it sees, issue commands..." onkeydown="if(event.key==='Enter')sendMessage()"/>
+      <button class="btn-send" onclick="sendMessage()">SEND</button>
+      <button class="btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Voice input">🎤</button>
+      <button class="btn-snap" onclick="analyseScene()">📷 ANALYSE</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: telemetry + log -->
+  <div class="right-panel panel">
+    <div class="panel-head">
+      <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      SENSOR TELEMETRY
+    </div>
+    <div class="tele-grid">
+      <div class="tele-card"><div class="tc-label">SPEED</div><div class="tc-val" id="tc-speed">0.0<span class="tc-unit"> m/s</span></div></div>
+      <div class="tele-card"><div class="tc-label">HEADING</div><div class="tc-val" id="tc-heading">045<span class="tc-unit">°</span></div></div>
+      <div class="tele-card"><div class="tc-label">DISTANCE</div><div class="tc-val" id="tc-dist">2.4<span class="tc-unit"> m</span></div></div>
+      <div class="tele-card"><div class="tc-label">OBJECTS</div><div class="tc-val" id="tc-obj">0<span class="tc-unit"> det</span></div></div>
+      <div class="tele-card" style="grid-column:1/-1">
+        <div class="tc-label">ULTRASONIC ARRAY (cm)</div>
+        <div style="display:flex;gap:4px;margin-top:4px" id="ultraArray">
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" id="son-L2" style="width:80%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" id="son-L1" style="width:40%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill warn" id="son-FWD" style="width:20%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" id="son-R1" style="width:60%"></div></div>
+          <div class="meter" style="flex:1;height:8px"><div class="meter-fill blue" id="son-R2" style="width:90%"></div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px;font-family:var(--mono);font-size:.55rem;color:var(--text2)">
+          <span>L2</span><span>L1</span><span>FWD</span><span>R1</span><span>R2</span>
+        </div>
+      </div>
+    </div>
+    <div class="obj-legend">
+      <div class="legend-title">DETECTION CLASSES</div>
+      <div class="legend-items">
+        <span class="legend-chip" style="color:#ff6b6b;border-color:#ff6b6b22;background:rgba(255,107,107,.06)">PERSON</span>
+        <span class="legend-chip" style="color:#4ecdc4;border-color:#4ecdc422;background:rgba(78,205,196,.06)">CHAIR</span>
+        <span class="legend-chip" style="color:#45b7d1;border-color:#45b7d122;background:rgba(69,183,209,.06)">TABLE</span>
+        <span class="legend-chip" style="color:#f9ca24;border-color:#f9ca2422;background:rgba(249,202,36,.06)">BOTTLE</span>
+        <span class="legend-chip" style="color:#6c5ce7;border-color:#6c5ce722;background:rgba(108,92,231,.06)">LAPTOP</span>
+        <span class="legend-chip" style="color:#a29bfe;border-color:#a29bfe22;background:rgba(162,155,254,.06)">DOOR</span>
+        <span class="legend-chip" style="color:#fd79a8;border-color:#fd79a822;background:rgba(253,121,168,.06)">CUP</span>
+        <span class="legend-chip" style="color:#55efc4;border-color:#55efc422;background:rgba(85,239,196,.06)">PLANT</span>
+      </div>
+    </div>
+    <div class="minimap">
+      <div class="legend-title" style="margin-bottom:4px">OCCUPANCY MAP</div>
+      <canvas class="minimap-canvas" id="mapCanvas" width="260" height="110"></canvas>
+    </div>
+    <div class="event-log">
+      <div class="panel-head">
+        <svg class="ph-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        SYSTEM LOG
+      </div>
+      <div id="eventLog"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SOURCE FILES PANEL ══ -->
+<div class="src-panel">
+  <div class="src-panel-head">
+    <div>
+      <h3>🐍 PYTHON SUBMODULES — SOURCE FILES</h3>
+      <div style="font-size:.65rem;color:var(--text2);margin-top:2px;font-family:var(--mono)">
+        Run: <span style="color:var(--accent3)">pip install -r requirements.txt &amp;&amp; python main.py --simulate</span>
+        &nbsp;|&nbsp; Live data: <span style="color:var(--accent2)">ws://localhost:8765</span>
+      </div>
+    </div>
+    <button class="src-dl-all" onclick="downloadAll()">⬇ DOWNLOAD ALL FILES</button>
+  </div>
+  <div class="src-grid">
+
+        <div class="src-row" id="src-wake_word_detector_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">wake_word_detector.py</div>
+              <div class="src-desc">Submodule 1 — Wake-word detection via Whisper</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('wake_word_detector.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('wake_word_detector.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-voice_assistant_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">voice_assistant.py</div>
+              <div class="src-desc">Submodule 2 — Voice conversation loop</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('voice_assistant.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('voice_assistant.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-chat_service_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">chat_service.py</div>
+              <div class="src-desc">Submodule 3 — LLM chat service (Claude / GPT-4o)</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('chat_service.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('chat_service.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-tts_service_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">tts_service.py</div>
+              <div class="src-desc">Submodule 4 — Text-to-speech playback</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('tts_service.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('tts_service.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-object_detector_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">object_detector.py</div>
+              <div class="src-desc">Submodule 5 — YOLOv8 object detection engine</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('object_detector.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('object_detector.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-robot_controller_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">robot_controller.py</div>
+              <div class="src-desc">Submodule 6 — Robot locomotion & telemetry</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('robot_controller.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('robot_controller.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-telemetry_server_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">telemetry_server.py</div>
+              <div class="src-desc">Submodule 7 — WebSocket server for live GUI data</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('telemetry_server.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('telemetry_server.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-main_py">
+          <div class="src-info">
+            <span class="src-icon">🐍</span>
+            <div>
+              <div class="src-name">main.py</div>
+              <div class="src-desc">Orchestrator — wires all submodules together</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('main.py')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('main.py')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+        <div class="src-row" id="src-requirements_txt">
+          <div class="src-info">
+            <span class="src-icon">📄</span>
+            <div>
+              <div class="src-name">requirements.txt</div>
+              <div class="src-desc">Python dependencies list</div>
+            </div>
+          </div>
+          <div class="src-actions">
+            <button class="src-btn view-btn" onclick="viewSource('requirements.txt')">VIEW</button>
+            <button class="src-btn dl-btn"   onclick="downloadFile('requirements.txt')">⬇ DOWNLOAD</button>
+          </div>
+        </div>
+  </div>
+</div>
+
+<script>
+const PY_SOURCES = {
+  "wake_word_detector.py": `"""
+wake_word_detector.py
+─────────────────────
+CHIN-BOT Submodule 1 — Wake-Word Detection Service
+
+Records short audio clips and uses OpenAI Whisper to check
+whether the configured wake word was spoken.
+
+Dependencies:
+    pip install pyaudio openai numpy
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import io
+import os
+import time
+import wave
+import tempfile
+import logging
+import numpy as np
+
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    PYAUDIO_AVAILABLE = False
+    logging.warning("pyaudio not found — microphone input disabled. Install with: pip install pyaudio")
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logging.warning("openai not found — transcription disabled. Install with: pip install openai")
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+SAMPLE_RATE      = 16000   # Hz — Whisper prefers 16 kHz
+CHANNELS         = 1       # Mono
+CHUNK_SIZE       = 1024    # Frames per buffer
+RECORD_SECONDS   = 2.0     # How long each wake-word clip is
+FORMAT           = pyaudio.paInt16 if PYAUDIO_AVAILABLE else None
+DEFAULT_WAKE     = "chin"  # Wake word (case-insensitive)
+ENERGY_THRESHOLD = 300     # RMS below this → silence, skip transcription
+# ──────────────────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
+
+
+class WakeWordDetector:
+    """
+    Continuously records SHORT audio clips and checks whether
+    the wake word appears in the Whisper transcription.
+
+    Usage
+    -----
+        detector = WakeWordDetector(api_key="sk-...", wake_word="chin")
+        detector.start()           # blocking loop
+        # or
+        detected = detector.listen_once()   # single clip check → bool
+    """
+
+    def __init__(
+        self,
+        api_key: str = None,
+        wake_word: str = DEFAULT_WAKE,
+        record_seconds: float = RECORD_SECONDS,
+        energy_threshold: int = ENERGY_THRESHOLD,
+        on_detected=None,
+    ):
+        self.wake_word       = wake_word.lower()
+        self.record_seconds  = record_seconds
+        self.energy_threshold = energy_threshold
+        self.on_detected     = on_detected  # callback(text: str) when triggered
+        self._running        = False
+
+        self._client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY")) \\
+                       if OPENAI_AVAILABLE else None
+
+        if PYAUDIO_AVAILABLE:
+            self._pa = pyaudio.PyAudio()
+        else:
+            self._pa = None
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def start(self):
+        """Blocking wake-word detection loop. Call stop() from another thread."""
+        self._running = True
+        logger.info("Wake-word detector started. Listening for '%s'…", self.wake_word)
+        while self._running:
+            detected, text = self.listen_once()
+            if detected:
+                logger.info("Wake word detected in: '%s'", text)
+                if self.on_detected:
+                    self.on_detected(text)
+            else:
+                time.sleep(0.05)   # tiny pause before next clip
+
+    def stop(self):
+        self._running = False
+        logger.info("Wake-word detector stopped.")
+
+    def listen_once(self) -> tuple[bool, str]:
+        """
+        Record one clip, transcribe, check for wake word.
+        Returns (detected: bool, transcription: str).
+        """
+        audio_bytes = self._record_clip()
+        if audio_bytes is None:
+            return False, ""
+
+        rms = self._rms(audio_bytes)
+        if rms < self.energy_threshold:
+            logger.debug("Clip too quiet (RMS=%d) — skipping transcription.", rms)
+            return False, ""
+
+        text = self._transcribe(audio_bytes)
+        detected = self._contains_wake_word(text)
+        return detected, text
+
+    # ── Audio recording ───────────────────────────────────────────────────────
+
+    def _record_clip(self) -> bytes | None:
+        """Record RECORD_SECONDS of audio and return raw PCM bytes."""
+        if not self._pa:
+            logger.error("PyAudio unavailable — cannot record.")
+            return None
+
+        stream = self._pa.open(
+            format=FORMAT,
+            channels=CHANNELS,
+            rate=SAMPLE_RATE,
+            input=True,
+            frames_per_buffer=CHUNK_SIZE,
+        )
+        frames = []
+        n_chunks = int(SAMPLE_RATE / CHUNK_SIZE * self.record_seconds)
+        for _ in range(n_chunks):
+            data = stream.read(CHUNK_SIZE, exception_on_overflow=False)
+            frames.append(data)
+        stream.stop_stream()
+        stream.close()
+        return b"".join(frames)
+
+    # ── Transcription ─────────────────────────────────────────────────────────
+
+    def _transcribe(self, pcm_bytes: bytes) -> str:
+        """Send PCM audio to OpenAI Whisper and return transcript."""
+        if not self._client:
+            logger.error("OpenAI client unavailable — returning empty transcript.")
+            return ""
+
+        # Write to a temp WAV file (Whisper needs a container format)
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+            self._write_wav(tmp_path, pcm_bytes)
+
+        try:
+            with open(tmp_path, "rb") as f:
+                result = self._client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f,
+                    language="en",
+                )
+            text = result.text.strip().lower()
+            logger.debug("Whisper transcript: '%s'", text)
+            return text
+        except Exception as exc:
+            logger.error("Transcription error: %s", exc)
+            return ""
+        finally:
+            os.unlink(tmp_path)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _write_wav(self, path: str, pcm_bytes: bytes):
+        with wave.open(path, "wb") as wf:
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(2)          # 16-bit = 2 bytes
+            wf.setframerate(SAMPLE_RATE)
+            wf.writeframes(pcm_bytes)
+
+    def _rms(self, pcm_bytes: bytes) -> float:
+        """Root-mean-square energy of the audio clip."""
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32)
+        return float(np.sqrt(np.mean(samples ** 2))) if len(samples) else 0.0
+
+    def _contains_wake_word(self, text: str) -> bool:
+        """Case-insensitive substring check for the wake word."""
+        return self.wake_word in text.lower()
+
+    def __del__(self):
+        if self._pa:
+            self._pa.terminate()
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    def on_wake(text):
+        print(f"\\n✅  Wake word detected! Full text: '{text}'\\n")
+
+    detector = WakeWordDetector(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        wake_word="chin",
+        on_detected=on_wake,
+    )
+    print("Listening… say 'chin' to trigger. Ctrl-C to stop.")
+    try:
+        detector.start()
+    except KeyboardInterrupt:
+        detector.stop()
+        print("Stopped.")
+`,
+  "voice_assistant.py": `"""
+voice_assistant.py
+──────────────────
+CHIN-BOT Submodule 2 — Voice Assistant Service
+
+Records sentences after wake-word activation, filters gibberish,
+detects end-of-conversation, and forwards clean transcripts to
+the chat service.
+
+Dependencies:
+    pip install pyaudio openai numpy
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import os
+import re
+import time
+import wave
+import logging
+import tempfile
+from dataclasses import dataclass, field
+from typing import Callable, Optional
+
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    PYAUDIO_AVAILABLE = False
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+SAMPLE_RATE       = 16000
+CHANNELS          = 1
+CHUNK_SIZE        = 1024
+SENTENCE_SECONDS  = 5.0     # How long each conversation turn is recorded
+FORMAT            = pyaudio.paInt16 if PYAUDIO_AVAILABLE else None
+
+GOODBYE_PHRASES   = [
+    "goodbye", "bye", "exit", "quit", "stop", "shut down",
+    "power off", "end session", "that's all", "thats all",
+]
+GIBBERISH_MIN_CHARS = 3     # Fewer clean alphabetic chars → gibberish
+# ──────────────────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ConversationTurn:
+    """A single user utterance and its metadata."""
+    raw_text:   str
+    clean_text: str
+    timestamp:  float = field(default_factory=time.time)
+    is_gibberish: bool = False
+    is_goodbye:   bool = False
+
+
+class VoiceAssistant:
+    """
+    Manages the listen → transcribe → filter → dispatch loop
+    that runs after the wake word has been detected.
+
+    Parameters
+    ----------
+    api_key          : OpenAI API key (or set OPENAI_API_KEY env var)
+    on_user_turn     : called with ConversationTurn for each clean utterance
+    on_goodbye       : called when end-of-conversation is detected
+    sentence_seconds : recording length per turn (default 5 s)
+
+    Usage
+    -----
+        va = VoiceAssistant(
+            api_key="sk-...",
+            on_user_turn=lambda t: chat_service.send(t.clean_text),
+            on_goodbye=lambda: print("Goodbye!"),
+        )
+        va.run_session()   # blocks until goodbye or stop()
+    """
+
+    def __init__(
+        self,
+        api_key: str = None,
+        on_user_turn: Callable[[ConversationTurn], None] = None,
+        on_goodbye: Callable[[], None] = None,
+        sentence_seconds: float = SENTENCE_SECONDS,
+    ):
+        self._api_key         = api_key or os.environ.get("OPENAI_API_KEY")
+        self.on_user_turn     = on_user_turn
+        self.on_goodbye       = on_goodbye
+        self.sentence_seconds = sentence_seconds
+        self._running         = False
+
+        self._client = OpenAI(api_key=self._api_key) if OPENAI_AVAILABLE else None
+        self._pa     = pyaudio.PyAudio() if PYAUDIO_AVAILABLE else None
+
+    # ── Session control ───────────────────────────────────────────────────────
+
+    def run_session(self):
+        """
+        Blocking conversation loop.  Records turns until:
+        - A goodbye phrase is detected, OR
+        - stop() is called from another thread.
+        """
+        self._running = True
+        logger.info("Voice assistant session started.")
+
+        while self._running:
+            turn = self._record_and_transcribe()
+            if turn is None:
+                continue
+
+            if turn.is_gibberish:
+                logger.debug("Gibberish detected — re-recording.")
+                continue
+
+            if turn.is_goodbye:
+                logger.info("End-of-conversation detected: '%s'", turn.clean_text)
+                if self.on_goodbye:
+                    self.on_goodbye()
+                self._running = False
+                break
+
+            logger.info("User said: '%s'", turn.clean_text)
+            if self.on_user_turn:
+                self.on_user_turn(turn)
+
+    def stop(self):
+        self._running = False
+
+    # ── Core pipeline ─────────────────────────────────────────────────────────
+
+    def _record_and_transcribe(self) -> Optional[ConversationTurn]:
+        """Record one sentence clip and return a ConversationTurn."""
+        pcm = self._record_clip(self.sentence_seconds)
+        if pcm is None:
+            return None
+
+        text = self._transcribe(pcm)
+        return self._classify(text)
+
+    def _record_clip(self, duration: float) -> Optional[bytes]:
+        if not self._pa:
+            logger.error("PyAudio not available.")
+            return None
+
+        stream = self._pa.open(
+            format=FORMAT, channels=CHANNELS,
+            rate=SAMPLE_RATE, input=True,
+            frames_per_buffer=CHUNK_SIZE,
+        )
+        frames = []
+        n = int(SAMPLE_RATE / CHUNK_SIZE * duration)
+        logger.debug("Recording %gs clip…", duration)
+        for _ in range(n):
+            frames.append(stream.read(CHUNK_SIZE, exception_on_overflow=False))
+        stream.stop_stream()
+        stream.close()
+        return b"".join(frames)
+
+    def _transcribe(self, pcm: bytes) -> str:
+        if not self._client:
+            return ""
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            path = tmp.name
+            _write_wav(path, pcm)
+        try:
+            with open(path, "rb") as f:
+                res = self._client.audio.transcriptions.create(
+                    model="whisper-1", file=f, language="en"
+                )
+            return res.text.strip()
+        except Exception as exc:
+            logger.error("Transcription failed: %s", exc)
+            return ""
+        finally:
+            os.unlink(path)
+
+    # ── Classification helpers ────────────────────────────────────────────────
+
+    def _classify(self, raw: str) -> ConversationTurn:
+        clean = raw.strip().lower()
+        turn = ConversationTurn(raw_text=raw, clean_text=clean)
+        turn.is_gibberish = self._is_gibberish(clean)
+        if not turn.is_gibberish:
+            turn.is_goodbye = self._is_goodbye(clean)
+        return turn
+
+    @staticmethod
+    def _is_gibberish(text: str) -> bool:
+        """Return True if text has too few real alphabetic characters."""
+        clean = re.sub(r"[^a-zA-Z ]", "", text.strip())
+        return len(clean) < GIBBERISH_MIN_CHARS
+
+    @staticmethod
+    def _is_goodbye(text: str) -> bool:
+        """Return True if text contains any goodbye phrase."""
+        t = text.lower()
+        return any(phrase in t for phrase in GOODBYE_PHRASES)
+
+    def __del__(self):
+        if self._pa:
+            self._pa.terminate()
+
+
+# ── Shared utility ────────────────────────────────────────────────────────────
+
+def _write_wav(path: str, pcm: bytes):
+    with wave.open(path, "wb") as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(pcm)
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    def handle_turn(turn: ConversationTurn):
+        print(f"  → User: {turn.clean_text}")
+
+    def handle_goodbye():
+        print("  → Session ended by user.")
+
+    va = VoiceAssistant(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        on_user_turn=handle_turn,
+        on_goodbye=handle_goodbye,
+        sentence_seconds=5.0,
+    )
+    print("Voice session active. Speak. Say 'goodbye' to end. Ctrl-C to force stop.")
+    try:
+        va.run_session()
+    except KeyboardInterrupt:
+        va.stop()
+`,
+  "chat_service.py": `"""
+chat_service.py
+───────────────
+CHIN-BOT Submodule 3 — Chat Service
+
+Maintains conversation history and sends turns to either the
+Anthropic Claude API or OpenAI GPT-4o. Returns text replies
+for downstream TTS playback.
+
+Dependencies:
+    pip install anthropic openai
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import os
+import time
+import logging
+from dataclasses import dataclass, field
+from typing import Literal, Optional
+
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+    logging.warning("anthropic not found. Install with: pip install anthropic")
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_GPT_MODEL    = "gpt-4o"
+DEFAULT_MAX_TOKENS   = 300
+DEFAULT_SYSTEM       = (
+    "You are CHIN, a helpful and precise embodied AI robot assistant. "
+    "You respond concisely (2–4 sentences), in plain English. "
+    "You are aware of your sensor state and what your camera currently detects. "
+    "When asked to perform an action, acknowledge it and describe what you would do."
+)
+# ──────────────────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChatMessage:
+    role:      Literal["user", "assistant"]
+    content:   str
+    timestamp: float = field(default_factory=time.time)
+    tokens:    int   = 0
+
+
+class ChatService:
+    """
+    Stateful chat service that wraps Anthropic Claude or OpenAI GPT.
+
+    Maintains a rolling conversation history so the robot remembers
+    context across turns within a session.
+
+    Parameters
+    ----------
+    provider      : "anthropic" or "openai"
+    api_key       : API key (falls back to env vars)
+    model         : model string override
+    system_prompt : base system prompt (will be extended with scene context)
+    max_tokens    : maximum tokens per response
+    history_limit : max past turns kept in context (older ones are pruned)
+
+    Usage
+    -----
+        chat = ChatService(provider="anthropic", api_key="sk-ant-...")
+        reply = chat.send("What do you see in front of you?",
+                          scene_context="PERSON detected at 2m, 94% confidence.")
+        print(reply)
+    """
+
+    def __init__(
+        self,
+        provider:      Literal["anthropic", "openai"] = "anthropic",
+        api_key:       str  = None,
+        model:         str  = None,
+        system_prompt: str  = DEFAULT_SYSTEM,
+        max_tokens:    int  = DEFAULT_MAX_TOKENS,
+        history_limit: int  = 20,
+    ):
+        self.provider      = provider
+        self.system_prompt = system_prompt
+        self.max_tokens    = max_tokens
+        self.history_limit = history_limit
+        self.history:  list[ChatMessage] = []
+        self._latencies: list[float]     = []
+
+        if provider == "anthropic":
+            key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+            self._client = anthropic.Anthropic(api_key=key) if ANTHROPIC_AVAILABLE else None
+            self._model  = model or DEFAULT_CLAUDE_MODEL
+        else:
+            key = api_key or os.environ.get("OPENAI_API_KEY")
+            self._client = OpenAI(api_key=key) if OPENAI_AVAILABLE else None
+            self._model  = model or DEFAULT_GPT_MODEL
+
+        logger.info("ChatService initialised: provider=%s model=%s", provider, self._model)
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def send(self, user_text: str, scene_context: str = "") -> str:
+        """
+        Send a user turn and return the assistant reply.
+
+        Parameters
+        ----------
+        user_text     : transcribed user utterance
+        scene_context : real-time sensor / detection context to inject
+        """
+        if not self._client:
+            logger.error("No LLM client available.")
+            return "LLM client not initialised. Check API key and dependencies."
+
+        self.history.append(ChatMessage(role="user", content=user_text))
+        system = self._build_system(scene_context)
+
+        t0 = time.time()
+        try:
+            reply = self._call_api(system)
+        except Exception as exc:
+            logger.error("LLM API error: %s", exc)
+            reply = f"I encountered an error: {exc}"
+
+        latency = time.time() - t0
+        self._latencies.append(latency)
+        logger.info("LLM reply in %.2fs: '%s'", latency, reply[:80])
+
+        self.history.append(ChatMessage(role="assistant", content=reply, tokens=len(reply.split())))
+        self._prune_history()
+        return reply
+
+    def clear(self):
+        """Reset conversation history (keeps system prompt)."""
+        self.history.clear()
+        logger.info("Conversation history cleared.")
+
+    @property
+    def avg_latency(self) -> float:
+        return sum(self._latencies) / len(self._latencies) if self._latencies else 0.0
+
+    @property
+    def total_tokens(self) -> int:
+        return sum(m.tokens for m in self.history if m.role == "assistant")
+
+    # ── API dispatch ──────────────────────────────────────────────────────────
+
+    def _call_api(self, system: str) -> str:
+        messages = [{"role": m.role, "content": m.content}
+                    for m in self.history[:-1]]   # exclude latest user turn — sent separately
+
+        if self.provider == "anthropic":
+            return self._call_anthropic(system, messages)
+        else:
+            return self._call_openai(system, messages)
+
+    def _call_anthropic(self, system: str, history: list[dict]) -> str:
+        messages = history + [{"role": "user", "content": self.history[-1].content}]
+        resp = self._client.messages.create(
+            model=self._model,
+            max_tokens=self.max_tokens,
+            system=system,
+            messages=messages,
+        )
+        return resp.content[0].text.strip()
+
+    def _call_openai(self, system: str, history: list[dict]) -> str:
+        messages = [{"role": "system", "content": system}] + \\
+                   history + \\
+                   [{"role": "user", "content": self.history[-1].content}]
+        resp = self._client.chat.completions.create(
+            model=self._model,
+            max_tokens=self.max_tokens,
+            messages=messages,
+        )
+        return resp.choices[0].message.content.strip()
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _build_system(self, scene_context: str) -> str:
+        if not scene_context:
+            return self.system_prompt
+        return f"{self.system_prompt}\\n\\nCurrent scene context:\\n{scene_context}"
+
+    def _prune_history(self):
+        """Keep only the most recent history_limit turns."""
+        if len(self.history) > self.history_limit:
+            self.history = self.history[-self.history_limit:]
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    chat = ChatService(
+        provider="anthropic",
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    )
+
+    scene = (
+        "Detected: PERSON (94%, left foreground), TABLE (91%, centre), "
+        "LAPTOP (89%, on table). Battery: 78%. Speed: 0 m/s. Distance to nearest obstacle: 2.4m."
+    )
+
+    turns = [
+        "What do you see in front of you?",
+        "Is it safe to move forward?",
+        "How is your battery?",
+    ]
+
+    for t in turns:
+        print(f"\\nUser : {t}")
+        reply = chat.send(t, scene_context=scene)
+        print(f"CHIN : {reply}")
+
+    print(f"\\nAvg latency : {chat.avg_latency:.2f}s")
+    print(f"Total turns : {len(chat.history)}")
+`,
+  "tts_service.py": `"""
+tts_service.py
+──────────────
+CHIN-BOT Submodule 4 — Text-to-Speech Service
+
+Converts LLM text replies to audio and plays them back.
+Supports OpenAI TTS-1 (cloud) and pyttsx3 (offline fallback).
+
+Dependencies:
+    pip install openai pyttsx3 playsound
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import io
+import os
+import logging
+import tempfile
+import threading
+from typing import Literal
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    import pyttsx3
+    PYTTSX3_AVAILABLE = True
+except ImportError:
+    PYTTSX3_AVAILABLE = False
+
+try:
+    from playsound import playsound
+    PLAYSOUND_AVAILABLE = True
+except ImportError:
+    PLAYSOUND_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+DEFAULT_VOICE   = "alloy"      # OpenAI TTS voice: alloy|echo|fable|onyx|nova|shimmer
+DEFAULT_MODEL   = "tts-1"      # tts-1 or tts-1-hd
+DEFAULT_SPEED   = 1.05         # Slightly faster sounds more robotic
+DEFAULT_PITCH   = 0.85         # pyttsx3 pitch multiplier
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TTSService:
+    """
+    Text-to-speech playback service.
+
+    Tries OpenAI TTS first; falls back to pyttsx3 if unavailable.
+    Playback is non-blocking by default (runs in a daemon thread).
+
+    Parameters
+    ----------
+    provider  : "openai" or "local"
+    api_key   : OpenAI API key
+    voice     : OpenAI voice name
+    speed     : speech rate multiplier
+    blocking  : if True, wait for playback to finish before returning
+
+    Usage
+    -----
+        tts = TTSService(provider="openai", api_key="sk-...")
+        tts.speak("I can see a person directly ahead.")
+    """
+
+    def __init__(
+        self,
+        provider: Literal["openai", "local"] = "openai",
+        api_key:  str  = None,
+        voice:    str  = DEFAULT_VOICE,
+        speed:    float = DEFAULT_SPEED,
+        blocking: bool  = False,
+    ):
+        self.provider = provider
+        self.voice    = voice
+        self.speed    = speed
+        self.blocking = blocking
+        self._lock    = threading.Lock()   # prevent overlapping playback
+
+        if provider == "openai" and OPENAI_AVAILABLE:
+            self._client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
+            logger.info("TTS: using OpenAI TTS-1 voice '%s'", voice)
+        elif PYTTSX3_AVAILABLE:
+            self.provider = "local"
+            self._engine  = pyttsx3.init()
+            self._engine.setProperty("rate",  int(180 * speed))
+            self._engine.setProperty("volume", 0.9)
+            logger.info("TTS: using pyttsx3 (offline)")
+        else:
+            logger.warning("TTS: no backend available — speech disabled.")
+            self._client = None
+            self._engine = None
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def speak(self, text: str):
+        """Speak text. Non-blocking unless self.blocking=True."""
+        if not text.strip():
+            return
+        if self.blocking:
+            self._speak_sync(text)
+        else:
+            t = threading.Thread(target=self._speak_sync, args=(text,), daemon=True)
+            t.start()
+
+    def speak_greeting(self):
+        self.speak("CHIN online. Vision system active. How can I assist you?")
+
+    def speak_goodbye(self):
+        self.speak("Session ended. Goodbye.")
+
+    # ── Backends ──────────────────────────────────────────────────────────────
+
+    def _speak_sync(self, text: str):
+        with self._lock:
+            if self.provider == "openai" and OPENAI_AVAILABLE:
+                self._speak_openai(text)
+            elif self.provider == "local" and PYTTSX3_AVAILABLE:
+                self._speak_local(text)
+            else:
+                logger.warning("TTS: no backend — would say: %s", text)
+
+    def _speak_openai(self, text: str):
+        try:
+            response = self._client.audio.speech.create(
+                model=DEFAULT_MODEL,
+                voice=self.voice,
+                input=text,
+                speed=self.speed,
+            )
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_path = tmp.name
+                tmp.write(response.content)
+
+            if PLAYSOUND_AVAILABLE:
+                playsound(tmp_path)
+            else:
+                # Fallback: use system player
+                os.system(f"{'afplay' if os.name != 'nt' else 'start'} \\"{tmp_path}\\"")
+            os.unlink(tmp_path)
+        except Exception as exc:
+            logger.error("OpenAI TTS error: %s", exc)
+
+    def _speak_local(self, text: str):
+        try:
+            self._engine.say(text)
+            self._engine.runAndWait()
+        except Exception as exc:
+            logger.error("pyttsx3 error: %s", exc)
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    tts = TTSService(
+        provider="openai",
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        voice="onyx",
+        blocking=True,
+    )
+    test_lines = [
+        "CHIN online. Vision system active.",
+        "I can see a person directly ahead at two point four metres.",
+        "Battery level seventy eight percent. All systems nominal.",
+    ]
+    for line in test_lines:
+        print(f"Speaking: {line}")
+        tts.speak(line)
+`,
+  "object_detector.py": `"""
+object_detector.py
+──────────────────
+CHIN-BOT Submodule 5 — Object Detection Engine
+
+Runs YOLOv8 inference on camera frames and publishes
+detection results as structured DetectionResult objects.
+
+Dependencies:
+    pip install ultralytics opencv-python numpy
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import time
+import logging
+from dataclasses import dataclass, field
+from typing import Callable, Optional
+
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    logging.warning("opencv-python not found. Install with: pip install opencv-python")
+
+try:
+    import numpy as np
+    NP_AVAILABLE = True
+except ImportError:
+    NP_AVAILABLE = False
+
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLO_AVAILABLE = False
+    logging.warning("ultralytics not found. Install with: pip install ultralytics")
+
+logger = logging.getLogger(__name__)
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+DEFAULT_MODEL      = "yolov8n.pt"   # nano — fastest; swap to yolov8s/m/l for accuracy
+DEFAULT_CONFIDENCE = 0.50           # minimum detection confidence
+DEFAULT_IOU        = 0.45           # IoU threshold for NMS
+TARGET_FPS         = 10             # inference rate cap to save CPU
+CAMERA_INDEX       = 0              # default USB/built-in camera
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class Detection:
+    """Single detected object."""
+    cls:        str
+    confidence: float
+    bbox_norm:  tuple[float, float, float, float]  # (x, y, w, h) normalised 0-1
+    bbox_px:    tuple[int, int, int, int]           # (x1, y1, x2, y2) pixel coords
+    center:     tuple[float, float]                 # (cx, cy) normalised
+
+    def to_dict(self) -> dict:
+        return {
+            "cls":        self.cls,
+            "confidence": round(self.confidence, 3),
+            "bbox_norm":  [round(v, 3) for v in self.bbox_norm],
+            "center":     [round(v, 3) for v in self.center],
+        }
+
+
+@dataclass
+class DetectionFrame:
+    """All detections for a single camera frame."""
+    detections: list[Detection] = field(default_factory=list)
+    timestamp:  float = field(default_factory=time.time)
+    frame_id:   int   = 0
+    latency_ms: float = 0.0
+
+    @property
+    def classes(self) -> list[str]:
+        return [d.cls for d in self.detections]
+
+    @property
+    def count(self) -> int:
+        return len(self.detections)
+
+    def get(self, cls: str) -> list[Detection]:
+        return [d for d in self.detections if d.cls.upper() == cls.upper()]
+
+    def to_context_string(self) -> str:
+        """Produce a natural-language summary for the LLM system prompt."""
+        if not self.detections:
+            return "No objects detected."
+        lines = [f"  - {d.cls} at ({d.center[0]:.0%}, {d.center[1]:.0%}) — {d.confidence:.0%} confidence"
+                 for d in self.detections]
+        return f"{self.count} object(s) detected:\\n" + "\\n".join(lines)
+
+
+class ObjectDetector:
+    """
+    Wraps YOLOv8 inference over a live camera feed.
+
+    Parameters
+    ----------
+    model_path   : path to .pt weights file (downloads automatically if not found)
+    confidence   : minimum confidence threshold
+    camera_index : OpenCV camera index or RTSP/HTTP URL
+    on_frame     : callback(DetectionFrame) called after each inference
+
+    Usage
+    -----
+        detector = ObjectDetector(on_frame=lambda f: print(f.to_context_string()))
+        detector.start()   # blocking
+        # or non-blocking:
+        import threading
+        t = threading.Thread(target=detector.start, daemon=True)
+        t.start()
+        # later…
+        frame = detector.latest_frame
+        detector.stop()
+    """
+
+    def __init__(
+        self,
+        model_path:   str   = DEFAULT_MODEL,
+        confidence:   float = DEFAULT_CONFIDENCE,
+        iou:          float = DEFAULT_IOU,
+        camera_index: int | str = CAMERA_INDEX,
+        on_frame:     Callable[[DetectionFrame], None] = None,
+    ):
+        self.confidence    = confidence
+        self.iou           = iou
+        self.camera_index  = camera_index
+        self.on_frame      = on_frame
+        self.latest_frame: Optional[DetectionFrame] = None
+        self._running      = False
+        self._frame_id     = 0
+
+        if YOLO_AVAILABLE:
+            logger.info("Loading YOLO model: %s", model_path)
+            self._model = YOLO(model_path)
+            logger.info("Model loaded. Classes: %d", len(self._model.names))
+        else:
+            self._model = None
+            logger.error("YOLO not available — using mock detections.")
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def start(self):
+        """Blocking inference loop. Call stop() to exit."""
+        if not CV2_AVAILABLE:
+            logger.error("OpenCV not available — cannot open camera.")
+            return
+
+        cap = cv2.VideoCapture(self.camera_index)
+        if not cap.isOpened():
+            logger.error("Cannot open camera index %s.", self.camera_index)
+            return
+
+        # Set camera properties
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+
+        self._running = True
+        min_interval  = 1.0 / TARGET_FPS
+        logger.info("Object detection started on camera %s.", self.camera_index)
+
+        while self._running:
+            t0 = time.time()
+            ret, frame = cap.read()
+            if not ret:
+                logger.warning("Camera read failed — retrying…")
+                time.sleep(0.1)
+                continue
+
+            det_frame = self._infer(frame)
+            self.latest_frame = det_frame
+            self._frame_id += 1
+
+            if self.on_frame:
+                self.on_frame(det_frame)
+
+            elapsed = time.time() - t0
+            sleep_t = max(0.0, min_interval - elapsed)
+            time.sleep(sleep_t)
+
+        cap.release()
+        logger.info("Object detection stopped.")
+
+    def stop(self):
+        self._running = False
+
+    def infer_image(self, image_path: str) -> DetectionFrame:
+        """Run inference on a saved image file."""
+        if not CV2_AVAILABLE:
+            return DetectionFrame()
+        frame = cv2.imread(image_path)
+        return self._infer(frame) if frame is not None else DetectionFrame()
+
+    # ── Inference ─────────────────────────────────────────────────────────────
+
+    def _infer(self, frame) -> DetectionFrame:
+        if self._model is None:
+            return self._mock_frame()
+
+        t0 = time.time()
+        h, w = frame.shape[:2]
+
+        results = self._model.predict(
+            frame,
+            conf=self.confidence,
+            iou=self.iou,
+            verbose=False,
+        )[0]
+
+        detections = []
+        for box in results.boxes:
+            x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
+            conf  = float(box.conf[0])
+            cls_i = int(box.cls[0])
+            cls_n = self._model.names[cls_i].upper()
+
+            bw, bh = x2 - x1, y2 - y1
+            detections.append(Detection(
+                cls        = cls_n,
+                confidence = conf,
+                bbox_norm  = (x1/w, y1/h, bw/w, bh/h),
+                bbox_px    = (x1, y1, x2, y2),
+                center     = ((x1+x2)/(2*w), (y1+y2)/(2*h)),
+            ))
+
+        return DetectionFrame(
+            detections = detections,
+            frame_id   = self._frame_id,
+            latency_ms = (time.time() - t0) * 1000,
+        )
+
+    def _mock_frame(self) -> DetectionFrame:
+        """Return a realistic mock frame when YOLO is unavailable."""
+        import random
+        mock_objects = [
+            ("PERSON", 0.94, (0.10, 0.08, 0.18, 0.70)),
+            ("TABLE",  0.91, (0.40, 0.50, 0.35, 0.30)),
+            ("LAPTOP", 0.89, (0.42, 0.38, 0.16, 0.12)),
+            ("CHAIR",  0.87, (0.55, 0.45, 0.20, 0.40)),
+        ]
+        detections = []
+        for cls, conf, (x, y, bw, bh) in mock_objects:
+            if random.random() > 0.1:  # occasionally drop one for realism
+                detections.append(Detection(
+                    cls=cls, confidence=conf + random.uniform(-0.03, 0.03),
+                    bbox_norm=(x, y, bw, bh), bbox_px=(0,0,0,0),
+                    center=(x + bw/2, y + bh/2),
+                ))
+        return DetectionFrame(detections=detections, frame_id=self._frame_id, latency_ms=12.0)
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    def on_frame(f: DetectionFrame):
+        print(f"\\rFrame {f.frame_id:04d} | {f.count} objects | {f.latency_ms:.1f}ms : "
+              + ", ".join(f"{d.cls}({d.confidence:.0%})" for d in f.detections),
+              end="", flush=True)
+
+    detector = ObjectDetector(
+        model_path="yolov8n.pt",
+        confidence=0.5,
+        on_frame=on_frame,
+    )
+    print("Running object detection. Press Ctrl-C to stop.")
+    try:
+        detector.start()
+    except KeyboardInterrupt:
+        detector.stop()
+        print("\\nStopped.")
+`,
+  "robot_controller.py": `"""
+robot_controller.py
+───────────────────
+CHIN-BOT Submodule 6 — Robot Controller
+
+Manages locomotion commands, dead-reckoning odometry,
+and sensor polling. Interfaces with hardware via serial
+(Arduino/ROS) or simulates when hardware is absent.
+
+Dependencies:
+    pip install pyserial
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import math
+import time
+import logging
+import threading
+from dataclasses import dataclass, field
+from typing import Literal, Optional, Callable
+
+try:
+    import serial
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
+    logging.warning("pyserial not found. Install with: pip install pyserial")
+
+logger = logging.getLogger(__name__)
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+DEFAULT_PORT     = "/dev/ttyUSB0"   # Linux; use "COM3" on Windows
+DEFAULT_BAUD     = 115200
+WHEEL_BASE       = 0.30             # metres between left/right wheels
+MAX_SPEED        = 0.5              # m/s
+SENSOR_HZ        = 20               # sensor polling rate
+ODOMETRY_HZ      = 50               # dead-reckoning update rate
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class RobotState:
+    """Full snapshot of the robot's physical state."""
+    x:         float = 0.0    # metres from origin
+    y:         float = 0.0
+    heading:   float = 0.0    # degrees, 0 = north
+    speed:     float = 0.0    # m/s
+    battery:   float = 100.0  # %
+    cpu:       float = 0.0    # %
+    temp:      float = 35.0   # °C
+    signal:    float = 100.0  # %
+    sonar_fwd: float = 5.0    # metres to nearest obstacle (forward)
+    sonar:     dict  = field(default_factory=lambda: {
+        "L2": 5.0, "L1": 5.0, "FWD": 5.0, "R1": 5.0, "R2": 5.0
+    })
+    timestamp: float = field(default_factory=time.time)
+
+    def to_context_string(self) -> str:
+        return (
+            f"Position: ({self.x:.1f}m, {self.y:.1f}m), heading {self.heading:.0f}°. "
+            f"Speed: {self.speed:.1f} m/s. "
+            f"Nearest obstacle (fwd): {self.sonar['FWD']:.1f}m. "
+            f"Battery: {self.battery:.0f}%. CPU: {self.cpu:.0f}%."
+        )
+
+
+class RobotController:
+    """
+    High-level locomotion and telemetry controller.
+
+    In hardware mode, sends velocity commands over serial to a
+    microcontroller (Arduino / ROS serial bridge).
+
+    In simulation mode (default when no serial port is found),
+    updates a dead-reckoning state model.
+
+    Parameters
+    ----------
+    port        : serial port string  (e.g. "/dev/ttyUSB0")
+    on_state    : callback(RobotState) called at SENSOR_HZ
+    simulate    : force simulation mode even if serial is available
+
+    Usage
+    -----
+        ctrl = RobotController(on_state=lambda s: print(s.to_context_string()))
+        ctrl.start()
+        ctrl.move_forward(speed=0.3, duration=2.0)
+        ctrl.stop()
+    """
+
+    def __init__(
+        self,
+        port:     str  = DEFAULT_PORT,
+        on_state: Callable[[RobotState], None] = None,
+        simulate: bool = False,
+    ):
+        self.state     = RobotState()
+        self.on_state  = on_state
+        self._running  = False
+        self._cmd_lock = threading.Lock()
+        self._vl = 0.0  # left wheel velocity
+        self._vr = 0.0  # right wheel velocity
+        self._serial: Optional[serial.Serial] = None
+
+        if not simulate and SERIAL_AVAILABLE:
+            try:
+                self._serial = serial.Serial(port, DEFAULT_BAUD, timeout=0.1)
+                logger.info("Robot controller: serial connected on %s", port)
+            except serial.SerialException as exc:
+                logger.warning("Serial unavailable (%s) — simulation mode.", exc)
+
+        if self._serial is None:
+            logger.info("Robot controller: simulation mode active.")
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def start(self):
+        """Start background threads for odometry and sensor polling."""
+        self._running = True
+        threading.Thread(target=self._odometry_loop, daemon=True).start()
+        threading.Thread(target=self._sensor_loop,   daemon=True).start()
+        logger.info("Robot controller started.")
+
+    def stop(self):
+        self._running = False
+        self.halt()
+        if self._serial:
+            self._serial.close()
+        logger.info("Robot controller stopped.")
+
+    # ── Locomotion commands ───────────────────────────────────────────────────
+
+    def halt(self):
+        self._set_velocity(0.0, 0.0)
+
+    def move_forward(self, speed: float = 0.3, duration: float = None):
+        s = min(abs(speed), MAX_SPEED)
+        self._set_velocity(s, s)
+        if duration:
+            time.sleep(duration)
+            self.halt()
+
+    def move_backward(self, speed: float = 0.3, duration: float = None):
+        s = min(abs(speed), MAX_SPEED)
+        self._set_velocity(-s, -s)
+        if duration:
+            time.sleep(duration)
+            self.halt()
+
+    def turn_left(self, speed: float = 0.2, duration: float = None):
+        s = min(abs(speed), MAX_SPEED)
+        self._set_velocity(-s, s)
+        if duration:
+            time.sleep(duration)
+            self.halt()
+
+    def turn_right(self, speed: float = 0.2, duration: float = None):
+        s = min(abs(speed), MAX_SPEED)
+        self._set_velocity(s, -s)
+        if duration:
+            time.sleep(duration)
+            self.halt()
+
+    def set_heading(self, target_deg: float, speed: float = 0.2):
+        """Rotate until heading matches target_deg (±5°)."""
+        while self._running:
+            diff = (target_deg - self.state.heading + 360) % 360
+            if diff > 180:
+                diff -= 360
+            if abs(diff) < 5:
+                self.halt()
+                break
+            direction = 1 if diff > 0 else -1
+            self._set_velocity(direction * speed, -direction * speed)
+            time.sleep(0.05)
+
+    # ── Internal ──────────────────────────────────────────────────────────────
+
+    def _set_velocity(self, vl: float, vr: float):
+        with self._cmd_lock:
+            self._vl = max(-MAX_SPEED, min(MAX_SPEED, vl))
+            self._vr = max(-MAX_SPEED, min(MAX_SPEED, vr))
+        if self._serial:
+            cmd = f"V {self._vl:.3f} {self._vr:.3f}\\n"
+            try:
+                self._serial.write(cmd.encode())
+            except serial.SerialException as exc:
+                logger.error("Serial write error: %s", exc)
+
+    def _odometry_loop(self):
+        """Dead-reckoning position update at ODOMETRY_HZ."""
+        dt = 1.0 / ODOMETRY_HZ
+        while self._running:
+            with self._cmd_lock:
+                vl, vr = self._vl, self._vr
+
+            v_centre = (vl + vr) / 2.0
+            omega    = (vr - vl) / WHEEL_BASE   # rad/s
+
+            h_rad = math.radians(self.state.heading)
+            self.state.x       += v_centre * math.cos(h_rad) * dt
+            self.state.y       += v_centre * math.sin(h_rad) * dt
+            self.state.heading  = (self.state.heading + math.degrees(omega) * dt) % 360
+            self.state.speed    = abs(v_centre)
+            self.state.timestamp = time.time()
+            time.sleep(dt)
+
+    def _sensor_loop(self):
+        """Poll sensors (simulated) and fire on_state callback."""
+        import random
+        dt = 1.0 / SENSOR_HZ
+        while self._running:
+            if self._serial:
+                self._poll_serial_sensors()
+            else:
+                # Simulate realistic sensor noise
+                self.state.battery   = max(5.0,  self.state.battery - 0.001)
+                self.state.cpu       = max(10.0, min(95.0, self.state.cpu + random.uniform(-1, 1)))
+                self.state.temp      = max(30.0, min(80.0, self.state.temp + random.uniform(-0.1, 0.1)))
+                self.state.signal    = max(20.0, min(100.0, self.state.signal + random.uniform(-0.5, 0.5)))
+                self.state.sonar["FWD"] = max(0.15, min(8.0,
+                    self.state.sonar["FWD"] + random.uniform(-0.05, 0.05)))
+                for k in self.state.sonar:
+                    self.state.sonar[k] = max(0.1, min(8.0,
+                        self.state.sonar[k] + random.uniform(-0.02, 0.02)))
+
+            if self.on_state:
+                self.on_state(self.state)
+            time.sleep(dt)
+
+    def _poll_serial_sensors(self):
+        """Read one line of JSON telemetry from the microcontroller."""
+        import json
+        try:
+            line = self._serial.readline().decode().strip()
+            if line:
+                data = json.loads(line)
+                self.state.battery = data.get("bat", self.state.battery)
+                self.state.temp    = data.get("temp", self.state.temp)
+                sonar = data.get("sonar", {})
+                self.state.sonar.update(sonar)
+                self.state.sonar_fwd = self.state.sonar.get("FWD", self.state.sonar_fwd)
+        except Exception:
+            pass
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    def print_state(s: RobotState):
+        print(f"\\r{s.to_context_string()}", end="", flush=True)
+
+    ctrl = RobotController(simulate=True, on_state=print_state)
+    ctrl.start()
+
+    print("Moving forward 1s…")
+    ctrl.move_forward(speed=0.3, duration=1.0)
+    print("\\nTurning left 1s…")
+    ctrl.turn_left(speed=0.2, duration=1.0)
+    print("\\nHalting.")
+    ctrl.stop()
+`,
+  "telemetry_server.py": `"""
+telemetry_server.py
+───────────────────
+CHIN-BOT Submodule 7 — WebSocket Telemetry Server
+
+Broadcasts robot state, detection frames, and chat events
+over WebSocket so the HTML GUI can receive live data.
+
+The GUI connects to ws://localhost:8765 and receives JSON
+messages categorised by "type": "telemetry" | "detection" | "chat".
+
+Dependencies:
+    pip install websockets asyncio
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import json
+import time
+import asyncio
+import logging
+import threading
+from dataclasses import asdict, dataclass
+from typing import Any
+
+try:
+    import websockets
+    from websockets.server import WebSocketServerProtocol
+    WS_AVAILABLE = True
+except ImportError:
+    WS_AVAILABLE = False
+    logging.warning("websockets not found. Install with: pip install websockets")
+
+logger = logging.getLogger(__name__)
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+DEFAULT_HOST = "localhost"
+DEFAULT_PORT = 8765
+BROADCAST_HZ = 20     # how often telemetry is pushed to all clients
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TelemetryServer:
+    """
+    Async WebSocket server. Broadcasts three message types:
+
+    { "type": "telemetry", "data": { x, y, heading, speed, battery, ... } }
+    { "type": "detection", "data": [ {cls, confidence, bbox_norm, center}, ... ] }
+    { "type": "chat",      "data": { role: "assistant"|"user", text: "..." } }
+
+    Parameters
+    ----------
+    host     : bind address
+    port     : WebSocket port (default 8765)
+
+    Usage
+    -----
+        server = TelemetryServer()
+        server.start_background()         # non-blocking thread
+
+        # Push data from robot modules:
+        server.push_telemetry(state_dict)
+        server.push_detections(det_list)
+        server.push_chat("assistant", "I can see a person ahead.")
+    """
+
+    def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
+        self.host = host
+        self.port = port
+        self._clients: set = set()
+        self._loop: asyncio.AbstractEventLoop = None
+        self._queue: asyncio.Queue = None
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def start_background(self):
+        """Start the server in a background daemon thread."""
+        t = threading.Thread(target=self._run_loop, daemon=True)
+        t.start()
+        # Give the loop a moment to initialise
+        time.sleep(0.3)
+        logger.info("Telemetry server running on ws://%s:%d", self.host, self.port)
+
+    def _run_loop(self):
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        self._queue = asyncio.Queue()
+        self._loop.run_until_complete(self._serve())
+
+    async def _serve(self):
+        if not WS_AVAILABLE:
+            logger.error("websockets library not available — server disabled.")
+            return
+        async with websockets.serve(self._handler, self.host, self.port):
+            await asyncio.Future()   # run forever
+
+    async def _handler(self, ws: "WebSocketServerProtocol", path: str = None):
+        self._clients.add(ws)
+        addr = ws.remote_address
+        logger.info("GUI client connected: %s", addr)
+        try:
+            async for msg in ws:
+                # Accept commands from the GUI (e.g. locomotion, chat)
+                try:
+                    data = json.loads(msg)
+                    logger.debug("Received from GUI: %s", data)
+                except json.JSONDecodeError:
+                    pass
+        except websockets.ConnectionClosed:
+            pass
+        finally:
+            self._clients.discard(ws)
+            logger.info("GUI client disconnected: %s", addr)
+
+    # ── Push methods (thread-safe) ────────────────────────────────────────────
+
+    def push_telemetry(self, state_dict: dict):
+        self._enqueue({"type": "telemetry", "data": state_dict})
+
+    def push_detections(self, detections: list[dict]):
+        self._enqueue({"type": "detection", "data": detections})
+
+    def push_chat(self, role: str, text: str):
+        self._enqueue({"type": "chat", "data": {"role": role, "text": text}})
+
+    def push_log(self, source: str, level: str, message: str):
+        self._enqueue({"type": "log", "data": {
+            "source": source, "level": level, "message": message,
+            "timestamp": time.time(),
+        }})
+
+    def _enqueue(self, msg: dict):
+        if self._loop and self._queue:
+            asyncio.run_coroutine_threadsafe(self._broadcast(msg), self._loop)
+
+    async def _broadcast(self, msg: dict):
+        if not self._clients:
+            return
+        payload = json.dumps(msg)
+        dead = set()
+        for ws in self._clients.copy():
+            try:
+                await ws.send(payload)
+            except Exception:
+                dead.add(ws)
+        self._clients -= dead
+
+    # ── Client command receiver ───────────────────────────────────────────────
+
+    def on_command(self, handler: callable):
+        """
+        Register a handler for commands arriving from the GUI.
+        Handler signature: handler(cmd: dict)
+
+        Expected GUI commands:
+          { "type": "move",  "direction": "fwd"|"bwd"|"left"|"right"|"stop" }
+          { "type": "speed", "value": 1..10 }
+          { "type": "chat",  "text": "..." }
+        """
+        self._cmd_handler = handler
+
+
+# ── HTTP endpoint for file downloads (serves the Python files) ────────────────
+
+class FileServer:
+    """
+    Minimal HTTP server to serve Python source files for download
+    from the GUI's 'Download Source' buttons.
+
+    Usage
+    -----
+        fs = FileServer(directory="/path/to/chinbot", port=8766)
+        fs.start_background()
+    """
+
+    def __init__(self, directory: str = ".", port: int = 8766):
+        self.directory = directory
+        self.port      = port
+
+    def start_background(self):
+        import http.server
+        import functools
+        handler = functools.partial(
+            http.server.SimpleHTTPRequestHandler,
+            directory=self.directory,
+        )
+        server = http.server.HTTPServer(("", self.port), handler)
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        logger.info("File server on http://localhost:%d", self.port)
+
+
+# ── Standalone test ───────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import random
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
+
+    server = TelemetryServer()
+    server.start_background()
+
+    print("WebSocket server running on ws://localhost:8765")
+    print("Connect your HTML GUI or test with: wscat -c ws://localhost:8765")
+
+    t = 0
+    try:
+        while True:
+            server.push_telemetry({
+                "x": math.sin(t) * 2, "y": math.cos(t) * 2,
+                "heading": (t * 10) % 360, "speed": abs(math.sin(t)) * 0.5,
+                "battery": max(20, 100 - t * 0.1), "cpu": 30 + random.uniform(-5, 5),
+                "temp": 45 + random.uniform(-2, 2), "signal": 85 + random.uniform(-3, 3),
+                "sonar": {"L2": 4.0, "L1": 3.0, "FWD": 1.5+random.uniform(0,.5),
+                           "R1": 2.5, "R2": 4.5},
+            })
+            server.push_log("TEST", "info", f"Simulation tick {int(t)}")
+            t += 0.1
+            time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\\nStopped.")
+`,
+  "main.py": `"""
+main.py
+───────
+CHIN-BOT Orchestrator — Wires all submodules together
+
+Starts all services in the correct order, connects their
+callbacks, and keeps the system running until interrupted.
+
+Run:
+    python main.py                    # full hardware mode
+    python main.py --simulate         # simulation (no hardware needed)
+    python main.py --provider openai  # use GPT-4o instead of Claude
+    python main.py --gui-only         # start servers only (use HTML GUI)
+
+Dependencies:
+    pip install anthropic openai pyaudio ultralytics
+    pip install opencv-python pyserial websockets pyttsx3
+
+Author : Dr C.S. Chin — Newcastle University Singapore
+Version: 1.0.0
+"""
+
+import os
+import sys
+import time
+import logging
+import argparse
+import threading
+
+# ── Submodule imports ──────────────────────────────────────────────────────────
+from wake_word_detector import WakeWordDetector
+from voice_assistant    import VoiceAssistant, ConversationTurn
+from chat_service       import ChatService
+from tts_service        import TTSService
+from object_detector    import ObjectDetector, DetectionFrame
+from robot_controller   import RobotController, RobotState
+from telemetry_server   import TelemetryServer, FileServer
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("main")
+
+
+# ─── Argument parsing ─────────────────────────────────────────────────────────
+def parse_args():
+    p = argparse.ArgumentParser(description="CHIN-BOT Embodied AI Robot")
+    p.add_argument("--simulate",   action="store_true", help="Simulation mode (no hardware)")
+    p.add_argument("--gui-only",   action="store_true", help="Skip voice loop; serve GUI only")
+    p.add_argument("--provider",   default="anthropic", choices=["anthropic","openai"],
+                   help="LLM provider")
+    p.add_argument("--model",      default=None,        help="Override model name")
+    p.add_argument("--wake-word",  default="chin",      help="Wake word (default: chin)")
+    p.add_argument("--camera",     default=0,           help="Camera index or RTSP URL")
+    p.add_argument("--serial",     default="/dev/ttyUSB0", help="Serial port for robot hardware")
+    p.add_argument("--ws-port",    default=8765, type=int,  help="WebSocket port for GUI")
+    p.add_argument("--http-port",  default=8766, type=int,  help="HTTP port for file downloads")
+    return p.parse_args()
+
+
+# ─── System orchestrator ──────────────────────────────────────────────────────
+class CHINBot:
+    def __init__(self, args):
+        self.args = args
+        self._running   = False
+        self._in_session = False
+
+        # Resolve API keys
+        self._anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        self._openai_key    = os.environ.get("OPENAI_API_KEY",    "")
+
+        # Initialise subsystems
+        logger.info("═══════════════════════════════════")
+        logger.info("  CHIN-BOT initialising")
+        logger.info("  Provider : %s", args.provider)
+        logger.info("  Simulate : %s", args.simulate)
+        logger.info("═══════════════════════════════════")
+
+        self._tts    = self._init_tts()
+        self._chat   = self._init_chat()
+        self._robot  = self._init_robot()
+        self._vision = self._init_vision()
+        self._server = self._init_server()
+        self._wake   = self._init_wake_word()
+        self._va     = self._init_voice_assistant()
+
+    # ── Initialisation ────────────────────────────────────────────────────────
+
+    def _init_tts(self) -> TTSService:
+        provider = "openai" if self._openai_key else "local"
+        return TTSService(provider=provider, api_key=self._openai_key, blocking=False)
+
+    def _init_chat(self) -> ChatService:
+        key = self._anthropic_key if self.args.provider == "anthropic" else self._openai_key
+        return ChatService(
+            provider=self.args.provider,
+            api_key=key,
+            model=self.args.model,
+        )
+
+    def _init_robot(self) -> RobotController:
+        ctrl = RobotController(
+            port=self.args.serial,
+            simulate=self.args.simulate,
+            on_state=self._on_robot_state,
+        )
+        ctrl.start()
+        return ctrl
+
+    def _init_vision(self) -> ObjectDetector:
+        try:
+            cam = int(self.args.camera)
+        except ValueError:
+            cam = self.args.camera
+        return ObjectDetector(
+            camera_index=cam,
+            on_frame=self._on_detection_frame,
+        )
+
+    def _init_server(self):
+        srv = TelemetryServer(port=self.args.ws_port)
+        srv.start_background()
+        fs = FileServer(directory=os.path.dirname(os.path.abspath(__file__)),
+                        port=self.args.http_port)
+        fs.start_background()
+        return srv
+
+    def _init_wake_word(self) -> WakeWordDetector:
+        return WakeWordDetector(
+            api_key=self._openai_key,
+            wake_word=self.args.wake_word,
+            on_detected=self._on_wake_detected,
+        )
+
+    def _init_voice_assistant(self) -> VoiceAssistant:
+        return VoiceAssistant(
+            api_key=self._openai_key,
+            on_user_turn=self._on_user_turn,
+            on_goodbye=self._on_goodbye,
+        )
+
+    # ── Callbacks ─────────────────────────────────────────────────────────────
+
+    def _on_robot_state(self, state: RobotState):
+        """Fires at SENSOR_HZ — push to GUI via WebSocket."""
+        self._server.push_telemetry({
+            "x":        round(state.x, 2),
+            "y":        round(state.y, 2),
+            "heading":  round(state.heading, 1),
+            "speed":    round(state.speed, 2),
+            "battery":  round(state.battery, 1),
+            "cpu":      round(state.cpu, 1),
+            "temp":     round(state.temp, 1),
+            "signal":   round(state.signal, 1),
+            "sonar":    {k: round(v, 2) for k, v in state.sonar.items()},
+        })
+
+    def _on_detection_frame(self, frame: DetectionFrame):
+        """Fires at TARGET_FPS — push detections to GUI."""
+        self._server.push_detections([d.to_dict() for d in frame.detections])
+        self._server.push_log("VISION", "detect",
+            f"{frame.count} objects | {frame.latency_ms:.1f}ms")
+
+    def _on_wake_detected(self, text: str):
+        """Wake word confirmed — start a voice session."""
+        if self._in_session:
+            return
+        logger.info("Wake word detected — starting session.")
+        self._tts.speak_greeting()
+        self._server.push_log("VOICE", "voice", "Wake word detected — session started")
+        self._in_session = True
+        threading.Thread(target=self._va.run_session, daemon=True).start()
+
+    def _on_user_turn(self, turn: ConversationTurn):
+        """Transcribed user utterance — send to LLM and speak reply."""
+        self._server.push_chat("user", turn.clean_text)
+        self._server.push_log("VOICE", "voice", f"User: {turn.clean_text[:60]}")
+
+        # Build scene context from latest sensor + detection data
+        scene = self._build_scene_context()
+        reply = self._chat.send(turn.clean_text, scene_context=scene)
+
+        self._server.push_chat("assistant", reply)
+        self._server.push_log("LLM", "llm", f"CHIN: {reply[:60]}")
+        self._tts.speak(reply)
+
+    def _on_goodbye(self):
+        self._in_session = False
+        self._tts.speak_goodbye()
+        self._chat.clear()
+        self._server.push_log("VOICE", "voice", "Session ended by user.")
+        logger.info("Session ended — returning to wake-word detection.")
+
+    # ── Scene context builder ─────────────────────────────────────────────────
+
+    def _build_scene_context(self) -> str:
+        parts = []
+        parts.append(self._robot.state.to_context_string())
+        if self._vision.latest_frame:
+            parts.append(self._vision.latest_frame.to_context_string())
+        return "\\n".join(parts)
+
+    # ── Main run ──────────────────────────────────────────────────────────────
+
+    def run(self):
+        self._running = True
+        logger.info("CHIN-BOT ready.")
+        self._server.push_log("SYSTEM", "info", "CHIN-BOT fully initialised and ready.")
+
+        # Start vision in background thread
+        vision_thread = threading.Thread(target=self._vision.start, daemon=True)
+        vision_thread.start()
+
+        if not self.args.gui_only:
+            self._tts.speak("CHIN online. Say the wake word to begin.")
+            logger.info("Listening for wake word: '%s'", self.args.wake_word)
+            self._wake.start()     # blocks here until stop()
+        else:
+            logger.info("GUI-only mode — WebSocket ready, voice loop inactive.")
+            print(f"\\n  GUI:       open EmbodiedAI_Robot_GUI.html in your browser")
+            print(f"  WebSocket: ws://localhost:{self.args.ws_port}")
+            print(f"  Downloads: http://localhost:{self.args.http_port}")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                pass
+
+    def shutdown(self):
+        logger.info("Shutting down CHIN-BOT…")
+        self._wake.stop()
+        self._va.stop()
+        self._vision.stop()
+        self._robot.stop()
+        self._running = False
+        logger.info("Shutdown complete.")
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import math   # needed by telemetry_server standalone test
+    args = parse_args()
+
+    if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
+        print("\\n⚠️  No API keys found in environment.")
+        print("   Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY before running.\\n")
+
+    bot = CHINBot(args)
+    try:
+        bot.run()
+    except KeyboardInterrupt:
+        print("\\nInterrupt received.")
+    finally:
+        bot.shutdown()
+`,
+  "requirements.txt": `# CHIN-BOT Requirements
+# Install with: pip install -r requirements.txt
+
+# LLM providers
+anthropic>=0.28.0
+openai>=1.30.0
+
+# Audio
+pyaudio>=0.2.14
+pyttsx3>=2.90
+playsound>=1.3.0
+
+# Computer vision
+ultralytics>=8.2.0
+opencv-python>=4.9.0
+numpy>=1.26.0
+
+# Robot hardware
+pyserial>=3.5
+
+# WebSocket server
+websockets>=12.0
+
+# Utilities
+python-dotenv>=1.0.0
+`
+};
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let apiKey='', demoMode=false, isListening=false, recognition=null;
+let detections=[], robotPos={x:130,y:55,heading:45}, mapTrail=[];
+let frameCount=0, moveDir=null, wsConn=null;
+let telemetry={speed:0,heading:45,dist:2.4,bat:78,cpu:42,temp:55,sig:88};
+let currentViewFile='';
+
+const SCENE_OBJECTS=[
+  {cls:'PERSON', color:'#ff6b6b',bx:0.10,by:0.08,bw:0.18,bh:0.70,conf:0.94},
+  {cls:'CHAIR',  color:'#4ecdc4',bx:0.55,by:0.45,bw:0.20,bh:0.40,conf:0.87},
+  {cls:'TABLE',  color:'#45b7d1',bx:0.40,by:0.50,bw:0.35,bh:0.30,conf:0.91},
+  {cls:'LAPTOP', color:'#6c5ce7',bx:0.42,by:0.38,bw:0.16,bh:0.12,conf:0.89},
+  {cls:'BOTTLE', color:'#f9ca24',bx:0.72,by:0.38,bw:0.06,bh:0.16,conf:0.76},
+  {cls:'PLANT',  color:'#55efc4',bx:0.82,by:0.10,bw:0.12,bh:0.55,conf:0.82},
+  {cls:'DOOR',   color:'#a29bfe',bx:0.00,by:0.00,bw:0.08,bh:0.90,conf:0.95},
+  {cls:'CUP',    color:'#fd79a8',bx:0.63,by:0.42,bw:0.05,bh:0.09,conf:0.71},
+];
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+function initApp(){
+  const k=document.getElementById('apiKeyInput').value.trim();
+  if(!k){alert('Please enter your API key');return;}
+  apiKey=k; document.getElementById('apiModal').style.display='none'; boot();
+}
+function initDemo(){
+  demoMode=true; document.getElementById('apiModal').style.display='none'; boot();
+}
+function boot(){
+  log('SYSTEM','info','CHIN-BOT v2.5 initialised');
+  log('VISION','detect','Object detection pipeline active');
+  log('LLM','llm',demoMode?'Demo mode — API simulated':'LLM: claude-sonnet-4-20250514');
+  log('MOTOR','info','Motor controllers online');
+  log('SOURCE','info','Python submodules available — see panel below');
+  addBotMsg('CHIN online. Vision system active. Python submodules are linked below — download and run with: python main.py --simulate',true);
+  startAnimations(); runDetection(); setupVoice(); connectWebSocket();
+}
+
+// ═══════════════════════════════════════
+// WEBSOCKET (connects to Python backend)
+// ═══════════════════════════════════════
+function connectWebSocket(){
+  try{
+    wsConn=new WebSocket('ws://localhost:8765');
+    wsConn.onopen=()=>{
+      document.getElementById('d-ws').style.background='var(--accent3)';
+      document.getElementById('s-ws').textContent='WS LIVE';
+      document.getElementById('wsBadge').textContent='LIVE';
+      document.getElementById('wsBadge').style.borderColor='var(--accent3)';
+      document.getElementById('wsBadge').style.color='var(--accent3)';
+      log('SYSTEM','info','WebSocket connected to Python backend ws://localhost:8765');
+    };
+    wsConn.onclose=()=>{
+      document.getElementById('d-ws').style.background='var(--warn)';
+      document.getElementById('s-ws').textContent='WS OFFLINE';
+      document.getElementById('wsBadge').textContent='SIMULATED';
+      document.getElementById('wsBadge').style.borderColor='var(--accent2)';
+      document.getElementById('wsBadge').style.color='var(--accent2)';
+      setTimeout(connectWebSocket,3000);
+    };
+    wsConn.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(msg.type==='telemetry') applyLiveTelemetry(msg.data);
+        else if(msg.type==='detection') applyLiveDetections(msg.data);
+        else if(msg.type==='chat') applyLiveChat(msg.data);
+        else if(msg.type==='log') log(msg.data.source,msg.data.level,msg.data.message);
+      }catch(err){}
+    };
+    wsConn.onerror=()=>{};
+  }catch(e){
+    log('SYSTEM','warn','WebSocket unavailable — simulation mode. Run: python main.py --simulate');
+  }
+}
+
+function sendWsCommand(cmd){
+  if(wsConn&&wsConn.readyState===1) wsConn.send(JSON.stringify(cmd));
+}
+
+function applyLiveTelemetry(d){
+  telemetry.bat=d.battery??telemetry.bat;
+  telemetry.cpu=d.cpu??telemetry.cpu;
+  telemetry.temp=d.temp??telemetry.temp;
+  telemetry.sig=d.signal??telemetry.sig;
+  telemetry.speed=d.speed??telemetry.speed;
+  telemetry.dist=d.sonar?.FWD??telemetry.dist;
+  if(d.x!=null){robotPos.x=d.x*20+130;robotPos.y=d.y*20+55;}
+  if(d.heading!=null)robotPos.heading=d.heading;
+  if(d.sonar){
+    for(const[k,v]of Object.entries(d.sonar)){
+      const el=document.getElementById('son-'+k);
+      if(el)el.style.width=Math.min(100,v/8*100)+'%';
+    }
+  }
+}
+
+function applyLiveDetections(dets){
+  detections=dets.map(d=>d.cls);
+  updateDetectionPanel();
+}
+
+function applyLiveChat(d){
+  if(d.role==='user') addUserMsg(d.text);
+  else addBotMsg(d.text);
+}
+
+// ═══════════════════════════════════════
+// CANVAS
+// ═══════════════════════════════════════
+function startAnimations(){
+  const bigCanvas=document.getElementById('bigCanvas');
+  const bigCtx=bigCanvas.getContext('2d');
+  const smallCanvas=document.getElementById('camCanvas');
+  const smallCtx=smallCanvas.getContext('2d');
+  const mapCanvas=document.getElementById('mapCanvas');
+  const mapCtx=mapCanvas.getContext('2d');
+  function resizeBig(){const w=bigCanvas.parentElement;bigCanvas.width=w.clientWidth;bigCanvas.height=w.clientHeight;}
+  resizeBig(); window.addEventListener('resize',resizeBig);
+  function drawScene(ctx,w,h,boxes){
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#0a0f14');g.addColorStop(1,'#060a0d');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#141e28';ctx.fillRect(0,h*.7,w,h*.3);
+    ctx.strokeStyle='#1e3a5f';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,h*.7);ctx.lineTo(w,h*.7);ctx.stroke();
+    ctx.strokeStyle='rgba(30,58,95,.4)';ctx.lineWidth=.5;
+    for(let i=0;i<5;i++){const x=w*(i/4);ctx.beginPath();ctx.moveTo(w/2,h*.7);ctx.lineTo(x,h);ctx.stroke();}
+    const sl=((Date.now()/16)%h);
+    const slG=ctx.createLinearGradient(0,sl-20,0,sl+4);
+    slG.addColorStop(0,'rgba(0,212,255,0)');slG.addColorStop(1,'rgba(0,212,255,0.04)');
+    ctx.fillStyle=slG;ctx.fillRect(0,sl-20,w,24);
+    if(!boxes)return;
+    SCENE_OBJECTS.forEach(obj=>{
+      const a=detections.includes(obj.cls)?1:.3;
+      ctx.globalAlpha=a;
+      const x=obj.bx*w,y=obj.by*h,bw=obj.bw*w,bh=obj.bh*h;
+      ctx.strokeStyle=obj.color;ctx.lineWidth=1.5;ctx.strokeRect(x,y,bw,bh);
+      const cs=8;ctx.lineWidth=2.5;
+      [[x,y,1,1],[x+bw,y,-1,1],[x,y+bh,1,-1],[x+bw,y+bh,-1,-1]].forEach(([cx,cy,dx,dy])=>{
+        ctx.beginPath();ctx.moveTo(cx+dx*cs,cy);ctx.lineTo(cx,cy);ctx.lineTo(cx,cy+dy*cs);ctx.stroke();
+      });
+      ctx.fillStyle='rgba(0,0,0,.75)';ctx.fillRect(x,y-16,bw,16);
+      ctx.fillStyle=obj.color;ctx.font=`bold ${Math.max(9,w*.010)}px 'Share Tech Mono',monospace`;
+      ctx.fillText(`${obj.cls} ${Math.round(obj.conf*100)}%`,x+4,y-3);
+      ctx.globalAlpha=1;
+    });
+  }
+  function drawMap(ctx){
+    const w=ctx.canvas.width,h=ctx.canvas.height;
+    ctx.fillStyle='#0a0f14';ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='rgba(30,58,95,.5)';ctx.lineWidth=.5;
+    for(let i=0;i<w;i+=18){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,h);ctx.stroke();}
+    for(let j=0;j<h;j+=18){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(w,j);ctx.stroke();}
+    if(mapTrail.length>1){
+      ctx.strokeStyle='rgba(0,212,255,.3)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(mapTrail[0].x,mapTrail[0].y);
+      mapTrail.forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+    }
+    const rx=Math.max(8,Math.min(w-8,robotPos.x*w/260)),ry=Math.max(8,Math.min(h-8,robotPos.y*h/130));
+    ctx.save();ctx.translate(rx,ry);ctx.rotate(robotPos.heading*Math.PI/180);
+    ctx.fillStyle='#00d4ff';
+    ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(4,5);ctx.lineTo(-4,5);ctx.closePath();ctx.fill();
+    ctx.restore();
+    [[55,35,10,18],[170,70,14,9],[90,85,18,5]].forEach(([ox,oy,ow,oh])=>{
+      ctx.fillStyle='rgba(255,51,85,.25)';ctx.strokeStyle='#ff3355';ctx.lineWidth=.5;
+      ctx.fillRect(ox,oy,ow,oh);ctx.strokeRect(ox,oy,ow,oh);
+    });
+  }
+  function animLoop(){
+    drawScene(bigCtx,bigCanvas.width,bigCanvas.height,true);
+    drawScene(smallCtx,280,200,false);
+    drawMap(mapCtx);
+    updateTelemetry();
+    requestAnimationFrame(animLoop);
+  }
+  animLoop();
+}
+
+// ═══════════════════════════════════════
+// TELEMETRY
+// ═══════════════════════════════════════
+function updateTelemetry(){
+  if(moveDir){
+    telemetry.speed=0.4+Math.random()*.3;
+    const s=1.2;
+    if(moveDir==='fwd'){robotPos.y-=s;mapTrail.push({x:robotPos.x,y:robotPos.y});}
+    if(moveDir==='bwd'){robotPos.y+=s;}
+    if(moveDir==='left'){robotPos.x-=s;robotPos.heading-=2;}
+    if(moveDir==='right'){robotPos.x+=s;robotPos.heading+=2;}
+    robotPos.x=Math.max(5,Math.min(250,robotPos.x));
+    robotPos.y=Math.max(5,Math.min(120,robotPos.y));
+    if(mapTrail.length>80)mapTrail.shift();
+  }else{
+    telemetry.speed=Math.max(0,telemetry.speed-.05);
+  }
+  telemetry.cpu=Math.min(95,Math.max(20,telemetry.cpu+(Math.random()-.5)*2));
+  telemetry.dist=Math.max(.5,Math.min(5,telemetry.dist+(Math.random()-.5)*.1));
+  telemetry.bat=Math.max(5,telemetry.bat-.0002);
+  document.getElementById('tc-speed').innerHTML=`${telemetry.speed.toFixed(1)}<span class="tc-unit"> m/s</span>`;
+  document.getElementById('tc-heading').innerHTML=`${((robotPos.heading%360+360)%360).toFixed(0)}<span class="tc-unit">°</span>`;
+  document.getElementById('tc-dist').innerHTML=`${telemetry.dist.toFixed(1)}<span class="tc-unit"> m</span>`;
+  document.getElementById('cpuVal').textContent=`${Math.round(telemetry.cpu)}%`;
+  document.getElementById('cpuMeter').style.width=`${telemetry.cpu}%`;
+  document.getElementById('batVal').textContent=`${Math.round(telemetry.bat)}%`;
+  document.getElementById('batMeter').style.width=`${telemetry.bat}%`;
+  document.getElementById('batMeter').className='meter-fill '+(telemetry.bat<30?'warn':'green');
+}
+function moveRobot(dir){moveDir=dir;sendWsCommand({type:'move',direction:dir});}
+function stopRobot(){moveDir=null;sendWsCommand({type:'move',direction:'stop'});}
+function updateSpeed(v){document.getElementById('speedVal').textContent=v;sendWsCommand({type:'speed',value:parseInt(v)});}
+
+// ═══════════════════════════════════════
+// DETECTION
+// ═══════════════════════════════════════
+function runDetection(){
+  const reveal=(i)=>{
+    if(i>=SCENE_OBJECTS.length)return;
+    setTimeout(()=>{
+      detections.push(SCENE_OBJECTS[i].cls);
+      updateDetectionPanel();
+      log('VISION','detect',`${SCENE_OBJECTS[i].cls} detected — ${Math.round(SCENE_OBJECTS[i].conf*100)}% conf`);
+      reveal(i+1);
+    },400+i*280);
+  };
+  setTimeout(()=>{log('VISION','detect','Initialising detection scan...');reveal(0);},1200);
+}
+function updateDetectionPanel(){
+  const list=document.getElementById('detectionList');list.innerHTML='';
+  const shown=SCENE_OBJECTS.filter(o=>detections.includes(o.cls));
+  document.getElementById('detCount').textContent=`${shown.length} OBJECTS`;
+  document.getElementById('tc-obj').innerHTML=`${shown.length}<span class="tc-unit"> det</span>`;
+  shown.forEach(obj=>{
+    const d=document.createElement('div');d.className='det-item';
+    d.innerHTML=`<div><div style="display:flex;gap:10px;align-items:center"><span class="det-class" style="color:${obj.color}">${obj.cls}</span><span class="det-conf">${Math.round(obj.conf*100)}%</span><span class="det-pos">x:${Math.round(obj.bx*100)}% y:${Math.round(obj.by*100)}%</span></div><div class="det-bar" style="width:${obj.conf*100}%;background:${obj.color}"></div></div>`;
+    list.appendChild(d);
+  });
+}
+
+// ═══════════════════════════════════════
+// LLM CHAT
+// ═══════════════════════════════════════
+function getSceneContext(){
+  const v=SCENE_OBJECTS.filter(o=>detections.includes(o.cls));
+  return `You are CHIN, an embodied AI robot assistant. Be concise (2-4 sentences).
+Robot state: pos (${Math.round(robotPos.x)},${Math.round(robotPos.y)}), heading ${Math.round(robotPos.heading)}°, speed ${telemetry.speed.toFixed(1)}m/s, battery ${Math.round(telemetry.bat)}%, obstacle ${telemetry.dist.toFixed(1)}m.
+Detected (${v.length}): ${v.map(o=>`${o.cls} (${Math.round(o.conf*100)}% at ${Math.round(o.bx*100)}%,${Math.round(o.by*100)}%)`).join('; ')}`;
+}
+async function sendMessage(){
+  const inp=document.getElementById('textInput');
+  const t=inp.value.trim();if(!t)return;inp.value='';
+  addUserMsg(t);sendWsCommand({type:'chat',text:t});
+  log('VOICE','voice',`User: "${t.substring(0,40)}"`);
+  await callLLM(t);
+}
+async function callLLM(txt){
+  const cl=document.getElementById('chatLog');
+  const th=document.createElement('div');th.className='thinking';
+  th.innerHTML='<div class="think-dot"></div><div class="think-dot"></div><div class="think-dot"></div>';
+  cl.appendChild(th);cl.scrollTop=cl.scrollHeight;
+  try{
+    let reply;
+    if(demoMode){await new Promise(r=>setTimeout(r,700+Math.random()*500));reply=getDemoReply(txt);}
+    else{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,system:getSceneContext(),messages:[{role:'user',content:txt}]})
+      });
+      const data=await res.json();
+      if(data.error)throw new Error(data.error.message);
+      reply=data.content[0].text;
+    }
+    th.remove();addBotMsg(reply);
+    log('LLM','llm',`CHIN: "${reply.substring(0,50)}"`);
+    if(typeof speechSynthesis!=='undefined'){
+      const u=new SpeechSynthesisUtterance(reply);u.rate=1.05;u.pitch=.85;speechSynthesis.speak(u);
+    }
+  }catch(e){th.remove();addBotMsg(`Error: ${e.message}`);log('SYSTEM','warn',`LLM error: ${e.message}`);}
+}
+function getDemoReply(t){
+  const v=SCENE_OBJECTS.filter(o=>detections.includes(o.cls)).map(o=>o.cls);
+  const tl=t.toLowerCase();
+  if(tl.includes('see')||tl.includes('detect')||tl.includes('what'))
+    return `Detecting ${v.length} objects: ${v.join(', ')}. PERSON in left quadrant at ~2.4m. Table and chair cluster centre-right.`;
+  if(tl.includes('move')||tl.includes('go')||tl.includes('forward'))
+    return `Navigation command received. Obstacle at ${telemetry.dist.toFixed(1)}m — safe to proceed. Adjusting heading to ${Math.round(robotPos.heading)}°.`;
+  if(tl.includes('battery')||tl.includes('status'))
+    return `Battery ${Math.round(telemetry.bat)}%, CPU ${Math.round(telemetry.cpu)}%. All motors nominal. Signal 88%. Recommend dock at 20%.`;
+  if(tl.includes('scan')||tl.includes('room'))
+    return `Room ~6×8m. ${v.length} objects mapped. Door detected far-left. No motion from PERSON in 3s.`;
+  return `Command acknowledged. ${v.length} objects in field. Battery ${Math.round(telemetry.bat)}% — nominal. Ready.`;
+}
+async function analyseScene(){
+  const n=SCENE_OBJECTS.filter(o=>detections.includes(o.cls)).map(o=>o.cls).join(', ');
+  await callLLM(`Analyse the scene and give a tactical navigation summary. Detected: ${n}.`);
+}
+function addUserMsg(t){
+  const cl=document.getElementById('chatLog');
+  const ts=new Date().toLocaleTimeString();
+  cl.innerHTML+=`<div class="msg user"><div class="msg-bubble">${t}</div><div class="msg-meta">OPERATOR · ${ts}</div></div>`;
+  cl.scrollTop=cl.scrollHeight;
+}
+function addBotMsg(t,init=false){
+  const cl=document.getElementById('chatLog');
+  const ts=new Date().toLocaleTimeString();
+  cl.innerHTML+=`<div class="msg bot"><div class="msg-bubble">${t}</div><div class="msg-meta">CHIN-BOT · ${ts}</div></div>`;
+  cl.scrollTop=cl.scrollHeight;
+}
+
+// ═══════════════════════════════════════
+// VOICE INPUT
+// ═══════════════════════════════════════
+function setupVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){log('VOICE','warn','Web Speech API not available');return;}
+  recognition=new SR();recognition.continuous=false;recognition.lang='en-US';
+  recognition.onresult=e=>{document.getElementById('textInput').value=e.results[0][0].transcript;sendMessage();};
+  recognition.onend=()=>{isListening=false;document.getElementById('voiceBtn').classList.remove('active');};
+  recognition.onerror=e=>log('VOICE','warn',`Speech error: ${e.error}`);
+}
+function toggleVoice(){
+  if(!recognition)return;
+  if(isListening){recognition.stop();isListening=false;document.getElementById('voiceBtn').classList.remove('active');}
+  else{recognition.start();isListening=true;document.getElementById('voiceBtn').classList.add('active');log('VOICE','voice','Listening...');}
+}
+
+// ═══════════════════════════════════════
+// QUICK ACTIONS
+// ═══════════════════════════════════════
+function quickAction(a){
+  const m={scan:'360° scan initiated.',patrol:'Patrol mode activated.',dock:'Navigating to dock.',report:'Generating status report.'};
+  log('SYSTEM','info',`Action: ${a.toUpperCase()}`);callLLM(m[a]);
+}
+
+// ═══════════════════════════════════════
+// SOURCE FILE VIEWER & DOWNLOADER
+// ═══════════════════════════════════════
+function viewSource(fname){
+  currentViewFile=fname;
+  const content=PY_SOURCES[fname]||'File not found.';
+  document.getElementById('codeModalTitle').textContent=fname;
+  document.getElementById('codeContent').textContent=content;
+  document.getElementById('codeModal').classList.add('open');
+}
+function closeCode(){document.getElementById('codeModal').classList.remove('open');}
+function downloadCurrentFile(){if(currentViewFile)downloadFile(currentViewFile);}
+
+function downloadFile(fname){
+  const content=PY_SOURCES[fname];
+  if(!content){log('SYSTEM','warn',`Source not found: ${fname}`);return;}
+  const mime=fname.endsWith('.txt')?'text/plain':'text/x-python';
+  const blob=new Blob([content],{type:mime});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=fname;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(a.href);
+  log('SOURCE','info',`Downloaded: ${fname}`);
+}
+
+function downloadAll(){
+  const fnames=Object.keys(PY_SOURCES);
+  fnames.forEach((f,i)=>setTimeout(()=>downloadFile(f),i*200));
+  log('SOURCE','info',`Downloading all ${fnames.length} source files...`);
+}
+
+// Close code modal on Escape
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCode();});
+
+// ═══════════════════════════════════════
+// LOG + CLOCK
+// ═══════════════════════════════════════
+function log(source,type,msg){
+  const el=document.getElementById('eventLog');
+  const t=new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML+=`<div class="log-entry"><span class="log-time">${t}</span><span class="log-type ${type}">${source}</span><span class="log-msg">${msg}</span></div>`;
+  el.scrollTop=el.scrollHeight;
+}
+setInterval(()=>{document.getElementById('sysTime').textContent=new Date().toLocaleTimeString('en',{hour12:false});},1000);
+
+// Boot sequence
+setTimeout(()=>log('SYSTEM','info','All subsystems nominal'),400);
+setTimeout(()=>log('MOTOR','info','Servo calibration complete'),800);
+setTimeout(()=>log('VISION','detect','Camera 1280×720@24fps active'),1200);
+setTimeout(()=>log('SOURCE','info','8 Python submodules embedded — see panel below'),1600);
+</script>
+</body>
+</html>

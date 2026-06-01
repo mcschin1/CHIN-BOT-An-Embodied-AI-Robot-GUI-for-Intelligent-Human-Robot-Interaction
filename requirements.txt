@@ -1,0 +1,25 @@
+# CHIN-BOT Requirements
+# Install with: pip install -r requirements.txt
+
+# LLM providers
+anthropic>=0.28.0
+openai>=1.30.0
+
+# Audio
+pyaudio>=0.2.14
+pyttsx3>=2.90
+playsound>=1.3.0
+
+# Computer vision
+ultralytics>=8.2.0
+opencv-python>=4.9.0
+numpy>=1.26.0
+
+# Robot hardware
+pyserial>=3.5
+
+# WebSocket server
+websockets>=12.0
+
+# Utilities
+python-dotenv>=1.0.0
